@@ -1,0 +1,6 @@
+{
+  "name": "Worp AI",
+  "description": "A high-end, terminal-inspired AI assistant with a block-based interface, providing a powerful and sleek conversational experience.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
