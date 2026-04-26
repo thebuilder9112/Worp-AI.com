@@ -408,7 +408,7 @@ function AppContent() {
                    <Logo 
                      className="w-full h-full" 
                      isDarkMode={isDarkMode} 
-                     lightImageSrc="logo.png" 
+                     lightImageSrc="/logo.png" 
                      darkImageSrc={darkLogo}
                      isSprite={false} 
                    />
@@ -811,7 +811,7 @@ function AppContent() {
                                 timestamp={m.timestamp}
                                 isStreaming={m.isStreaming}
                                 userName={profile?.displayName}
-                                lightLogo="logo.png"
+                                lightLogo="/logo.png"
                                 darkLogo={darkLogo}
                               />
                               <div className="flex items-center gap-4 mt-4 px-6 opacity-0 group-hover:opacity-100 transition-opacity">
