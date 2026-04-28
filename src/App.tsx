@@ -397,7 +397,7 @@ function AppContent() {
   return (
     <TooltipProvider>
       <SidebarProvider>
-        <div className={`flex h-screen w-full transition-all duration-500 font-sans ${friendlyMode ? 'bg-[#0a0a0b] text-zinc-300' : 'bg-zinc-950 text-zinc-200'}`}>
+        <div className={`flex h-screen w-full transition-all duration-500 font-sans ${friendlyMode ? 'bg-[#050505] text-zinc-300' : 'bg-black text-zinc-200'}`}>
           <Toaster theme="dark" position="top-center" />
           
           {/* Main Sidebar */}
@@ -814,13 +814,8 @@ function AppContent() {
                                 lightLogo="logo.png"
                                 darkLogo={darkLogo}
                               />
-                              <div className="flex items-center gap-4 mt-4 px-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button className="text-[10px] text-zinc-700 hover:text-theme-accent flex items-center gap-1 uppercase font-mono">
-                                   <Share2 className="w-2.5 h-2.5" /> Share
-                                 </button>
-                                 <button className="text-[10px] text-zinc-700 hover:text-theme-accent flex items-center gap-1 uppercase font-mono">
-                                   <History className="w-2.5 h-2.5" /> Version History
-                                 </button>
+                              <div className="flex items-center gap-4 mt-4 px-12 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 {/* Minimalist actions can go here if needed, but keeping it clean for now */}
                               </div>
                             </motion.div>
                           ))}

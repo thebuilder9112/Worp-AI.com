@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Copy, Check, Terminal, Cpu, MessageSquare, Code, Sparkles, Brain } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../lib/ThemeContext';
@@ -117,96 +119,71 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ command, response, timesta
       className="space-y-6"
     >
       {/* User Message - Aligned Right */}
-      <div className="flex flex-col items-end">
-        <div className={`max-w-[85%] rounded-2xl rounded-tr-none px-6 py-4 shadow-xl border ${
+      <div className="flex flex-col items-end mb-8">
+        <div className={`max-w-[85%] rounded-[2rem] px-5 py-2.5 shadow-sm border ${
           isDarkMode 
-            ? 'bg-zinc-900/40 border-zinc-800 text-zinc-100' 
+            ? 'bg-[#2a2a2c] border-zinc-700/50 text-white font-medium' 
             : 'bg-zinc-100 border-zinc-200 text-zinc-900'
         }`}>
-          <div className="flex items-center gap-2 mb-2 opacity-50">
-            <span className="text-[10px] font-mono tracking-widest uppercase">{userName || 'User'}_Input</span>
-            <span className="w-1 h-1 rounded-full bg-zinc-500" />
-            <span className="text-[9px] font-mono uppercase">{format(timestamp, 'HH:mm')}</span>
-          </div>
-          <p className="text-[15px] font-mono leading-relaxed">{command}</p>
+          <p className="text-[15px] leading-relaxed tracking-tight">{command}</p>
         </div>
       </div>
 
       {/* AI Message - Aligned Left */}
-      <div className="flex gap-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border overflow-hidden transition-all ${
-          isDarkMode 
-            ? 'bg-black border-theme-accent/30 shadow-[0_0_15px_rgba(var(--accent-glow-rgb),0.1)]' 
-            : 'bg-white border-zinc-200 shadow-lg'
-        }`}>
-          {finalLogo ? (
-            <img src={finalLogo} alt="AI" className="w-full h-full object-cover" />
-          ) : (
-            <div className="text-theme-accent animate-pulse">{modeIcons[chatMode]}</div>
-          )}
+      <div className="flex gap-6">
+        <div className={`w-8 h-8 flex items-center justify-center shrink-0 mt-1`}>
+          <Sparkles className="w-6 h-6 text-blue-400 fill-blue-400/20" />
         </div>
         
-        <div className="flex-1 space-y-2">
-          <div className={`relative group border rounded-2xl rounded-tl-none overflow-hidden shadow-2xl transition-all duration-700 ${
-            isDarkMode ? 'bg-[#0a0a0c] border-zinc-900/50 hover:border-zinc-800' : 'bg-white border-zinc-200'
-          }`}>
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-theme-accent opacity-60 group-hover:opacity-100 transition-opacity" />
-            
-            <div className="p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-bold text-theme-accent uppercase tracking-[0.2em]">Worp_AI</span>
-                <span className="w-1 h-1 rounded-full bg-zinc-800" />
-              </div>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-mono text-zinc-700 tracking-widest uppercase">System_Response::{chatMode}</span>
-                <button 
-                  onClick={handleCopy}
-                  className="p-1.5 rounded hover:bg-zinc-900 transition-colors text-zinc-700 hover:text-theme-accent"
-                >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                </button>
-              </div>
-
-              <div className={`text-[15px] leading-relaxed markdown-friendly ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    p: ({ children }) => <p className="mb-6 last:mb-0">{children}</p>,
-                    code: ({ children, className }) => {
-                      const isInline = !className;
-                      return isInline ? (
-                        <code className="px-1.5 py-0.5 rounded font-mono text-[12px] bg-zinc-900/50 text-theme-accent border border-zinc-800/50">{children}</code>
-                      ) : (
-                        <div className="relative group/code my-6">
-                          <pre className={`relative p-6 rounded-lg border overflow-x-auto shadow-2xl font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black border-zinc-900' : 'bg-zinc-50 border-zinc-200'}`}>
-                            <code className="text-theme-accent">{children}</code>
-                          </pre>
-                        </div>
-                      );
-                    },
-                    img: ({ src, alt }) => (
-                      <div className={`my-6 rounded-xl overflow-hidden border shadow-2xl ${isDarkMode ? 'border-zinc-900' : 'border-zinc-200'}`}>
-                        <img 
-                          src={src} 
-                          alt={alt || "Worp Neural Visual"} 
-                          className="w-full h-auto object-cover max-h-[500px]"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    ),
-                  }}
-                >
-                  {response}
-                </ReactMarkdown>
-                {isStreaming && (
-                  <motion.span 
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ duration: 0.8, repeat: Infinity }}
-                    className="inline-block w-2.5 h-5 bg-theme-accent ml-1 align-middle shadow-[0_0_10px_var(--accent-glow)]" 
-                  />
-                )}
-              </div>
-            </div>
+        <div className="flex-1 space-y-4">
+          <div className={`text-[16px] leading-relaxed markdown-friendly ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                p: ({ children }) => <p className="mb-6 last:mb-0">{children}</p>,
+                code: ({ children, className }) => {
+                  const isInline = !className;
+                  return isInline ? (
+                    <code className="px-1.5 py-0.5 rounded font-mono text-[13px] bg-zinc-900/50 text-theme-accent">{children}</code>
+                  ) : (
+                    <div className="relative group/code my-6">
+                      <pre className={`relative p-6 rounded-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/40 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <code>{children}</code>
+                      </pre>
+                    </div>
+                  );
+                },
+                img: ({ src, alt }) => (
+                  <div className={`my-6 rounded-2xl overflow-hidden border shadow-sm ${isDarkMode ? 'border-zinc-800/50' : 'border-zinc-200'}`}>
+                    <img 
+                      src={src} 
+                      alt={alt || "Worp Neural Visual"} 
+                      className="w-full h-auto object-cover max-h-[600px]"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ),
+              }}
+            >
+              {response}
+            </ReactMarkdown>
+            {isStreaming && (
+              <motion.span 
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{ duration: 0.8, repeat: Infinity }}
+                className="inline-block w-2 h-4 bg-theme-accent ml-1 align-middle" 
+              />
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={handleCopy}
+              className="p-2 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+            >
+              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            </button>
           </div>
         </div>
       </div>
