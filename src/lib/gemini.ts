@@ -1,17 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-let aiInstance: GoogleGenAI | null = null;
+let genAI: GoogleGenAI | null = null;
 
 function getAI() {
-  if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY;
+  if (!genAI) {
+    const apiKey = import.meta.env.VITE_API_KEY || (import.meta.env as any).GEMINI_API_KEY;
 
     if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
-      throw new Error("Neural link failed: Missing API Key. I am unable to connect to the brain core.");
+      throw new Error("Neural link failed: Missing API Key. Please add VITE_API_KEY to your secrets.");
     }
-    aiInstance = new GoogleGenAI({ apiKey });
+    genAI = new GoogleGenAI({ apiKey });
   }
-  return aiInstance;
+  return genAI;
 }
 
 export async function* streamChat(
@@ -27,11 +27,13 @@ export async function* streamChat(
   };
 
   const ai = getAI();
-  const response = await ai.models.generateContentStream({ 
+  const systemInstruction = instructions[mode] + " RESPONSE_PROTOCOL: Be helpful and detailed. Use markdown formatting. If you are creative mode, be descriptive. If you are code mode, provide complete snippets.";
+
+  const response = await ai.models.generateContentStream({
     model: "gemini-3-flash-preview",
     contents: [...history, { role: "user", parts: [{ text: message }] }],
     config: {
-      systemInstruction: instructions[mode] + " RESPONSE_PROTOCOL: Be helpful and detailed. Use markdown formatting. If you are creative mode, be descriptive. If you are code mode, provide complete snippets."
+      systemInstruction
     }
   });
 

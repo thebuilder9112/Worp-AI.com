@@ -131,8 +131,12 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ command, response, timesta
 
       {/* AI Message - Aligned Left */}
       <div className="flex gap-6">
-        <div className={`w-8 h-8 flex items-center justify-center shrink-0 mt-1`}>
-          <Sparkles className="w-6 h-6 text-blue-400 fill-blue-400/20" />
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 overflow-hidden border ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+          {finalLogo ? (
+            <img src={finalLogo} alt="AI" className="w-full h-full object-cover" />
+          ) : (
+            <Sparkles className="w-4 h-4 text-theme-accent" />
+          )}
         </div>
         
         <div className="flex-1 space-y-4">

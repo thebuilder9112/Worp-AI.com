@@ -74,6 +74,7 @@ import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 import darkLogo from './logo3.jpg';
+import lightLogo from './logo.png';
 import { 
   Dialog,
   DialogContent,
@@ -408,7 +409,7 @@ function AppContent() {
                    <Logo 
                      className="w-full h-full" 
                      isDarkMode={isDarkMode} 
-                     lightImageSrc="logo.png" 
+                     lightImageSrc={lightLogo} 
                      darkImageSrc={darkLogo}
                      isSprite={false} 
                    />
@@ -811,7 +812,7 @@ function AppContent() {
                                 timestamp={m.timestamp}
                                 isStreaming={m.isStreaming}
                                 userName={profile?.displayName}
-                                lightLogo="logo.png"
+                                lightLogo={lightLogo}
                                 darkLogo={darkLogo}
                               />
                               <div className="flex items-center gap-4 mt-4 px-12 opacity-0 group-hover:opacity-100 transition-opacity">
