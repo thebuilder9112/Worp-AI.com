@@ -4,10 +4,10 @@ let genAI: GoogleGenAI | null = null;
 
 function getAI() {
   if (!genAI) {
-    const apiKey = import.meta.env.VITE_API_KEY || (import.meta.env as any).GEMINI_API_KEY;
+    const apiKey = import.meta.env.VITE_API_KEY;
 
-    if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
-      throw new Error("Neural link failed: Missing API Key. Please add VITE_API_KEY to your secrets.");
+    if (!apiKey || apiKey === 'undefined' || apiKey === 'null' || apiKey === '') {
+      throw new Error("Neural link failed: Missing API Key. If you are seeing this on GitHub Pages, make sure you have added VITE_API_KEY to your GitHub Secrets and updated your deploy workflow.");
     }
     genAI = new GoogleGenAI({ apiKey });
   }
