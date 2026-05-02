@@ -74,8 +74,8 @@ import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 
-const darkLogo = "/logo3.jpg";
-const lightLogo = "/logo3.jpg";
+const darkLogo = "logo3.jpg";
+const lightLogo = "logo3.jpg";
 
 import { 
   Dialog,
@@ -411,7 +411,7 @@ function AppContent() {
                     <Logo 
                       className="w-full h-full object-cover" 
                       isDarkMode={isDarkMode} 
-                      imageSrc="/logo3.jpg"
+                      imageSrc={isDarkMode ? darkLogo : lightLogo}
                       isSprite={false} 
                     />
                 </div>
