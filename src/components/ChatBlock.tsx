@@ -148,7 +148,7 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
             <div className="flex items-center gap-2 mb-4 border-b border-zinc-800/20 pb-2">
               <span className="text-[10px] font-bold text-theme-accent uppercase tracking-wider animate-shine bg-gradient-to-r from-theme-accent via-white to-theme-accent bg-clip-text text-transparent bg-[length:200%_auto]">Neural_Core_Output</span>
               <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
-              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-50">{id}</span>
+              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-50">{timestamp.getTime()}</span>
             </div>
             <div className={`text-[15px] leading-relaxed markdown-friendly`}>
               <ReactMarkdown 
