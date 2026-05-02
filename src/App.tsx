@@ -1,6 +1,8 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ * 
+ * WORP AI TERMINAL - LOGO SYNC VERIFIED
  */
 
 import React, { useState, useRef, useEffect } from 'react';
