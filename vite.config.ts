@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: mode === 'production' ? '/Worp-AI/' : '/',
+    base: mode === 'production' ? '/Worp-AI.com/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

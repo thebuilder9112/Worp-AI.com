@@ -74,8 +74,8 @@ import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 
-const darkLogo = "logo3.jpg";
-const lightLogo = "logo3.jpg";
+import darkLogo from './logo3.jpg';
+import lightLogo from './logo3.jpg';
 
 import { 
   Dialog,

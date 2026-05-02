@@ -21,7 +21,7 @@ interface ChatBlockProps {
   darkLogo?: string;
 }
 
-export const ChatBlock: React.FC<ChatBlockProps> = ({ command, response, timestamp, isStreaming, userName, lightLogo, darkLogo }) => {
+export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, timestamp, isStreaming, userName, lightLogo, darkLogo }) => {
   const [copied, setCopied] = useState(false);
   const { chatMode, friendlyMode, isDarkMode } = useTheme();
 
