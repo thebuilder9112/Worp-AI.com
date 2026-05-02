@@ -74,10 +74,8 @@ import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 
-// Use process.env.BASE_URL or import.meta.env.BASE_URL for more robust path resolution
-const logoPath = `${import.meta.env.BASE_URL || '/'}logo3.jpg`.replace(/\/+/g, '/');
-const darkLogo = logoPath;
-const lightLogo = logoPath;
+import darkLogo from './logo3.jpg';
+import lightLogo from './logo3.jpg';
 
 import { 
   Dialog,
