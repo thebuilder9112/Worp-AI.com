@@ -407,16 +407,15 @@ function AppContent() {
           <Sidebar className={`border-r transition-colors duration-500 overflow-hidden ${isDarkMode ? (friendlyMode ? 'border-zinc-800 bg-[#0f0f11]' : 'border-zinc-900 bg-zinc-950') : 'border-zinc-200 bg-white'}`}>
             <SidebarHeader className="h-16 flex items-center px-4">
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden transition-all ${friendlyMode ? 'bg-theme-accent/10 border border-theme-accent/20' : 'bg-theme-accent-glow border border-theme-accent-glow'}`}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden border border-zinc-800 shadow-lg bg-black">
                    <Logo 
-                     className="w-full h-full" 
+                     className="w-full h-full object-cover" 
                      isDarkMode={isDarkMode} 
-                     lightImageSrc={lightLogo} 
-                     darkImageSrc={darkLogo}
+                     imageSrc="/logo3.jpg"
                      isSprite={false} 
                    />
                 </div>
-                <span className={`font-bold text-lg tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-600 via-zinc-900 to-zinc-600'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
+                <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
                 </span>
               </div>
