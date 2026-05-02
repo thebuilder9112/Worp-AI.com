@@ -74,8 +74,8 @@ import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 
-import darkLogo from './logo3.jpg';
-import lightLogo from './logo3.jpg';
+const darkLogo = "/logo3.jpg";
+const lightLogo = "/logo3.jpg";
 
 import { 
   Dialog,
@@ -408,12 +408,12 @@ function AppContent() {
             <SidebarHeader className="h-16 flex items-center px-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden border border-zinc-800 shadow-lg bg-black">
-                   <Logo 
-                     className="w-full h-full object-cover" 
-                     isDarkMode={isDarkMode} 
-                     imageSrc="/logo3.jpg"
-                     isSprite={false} 
-                   />
+                    <Logo 
+                      className="w-full h-full object-cover" 
+                      isDarkMode={isDarkMode} 
+                      imageSrc="/logo3.jpg"
+                      isSprite={false} 
+                    />
                 </div>
                 <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
