@@ -40,7 +40,11 @@ import {
   BookOpen,
   PenLine,
   ChevronDown,
-  SendHorizontal
+  SendHorizontal,
+  FileText,
+  Terminal,
+  Copy,
+  FileCode
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -71,10 +75,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
 import { BlurFade } from '@/components/ui/blur-fade';
 import { Toaster, toast } from 'sonner';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, limit } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, limit, updateDoc } from 'firebase/firestore';
 import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
+import { TerminalEffects } from './components/TerminalEffects';
+import { CommandPalette } from './components/CommandPalette';
 
 import darkLogo from './logo3.jpg';
 import lightLogo from './logo3.jpg';
@@ -86,9 +92,13 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 interface Message {
   id: string;
@@ -120,6 +130,13 @@ function AppContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [crtEnabled, setCrtEnabled] = useState(true);
+  const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
+  const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
+  const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const { 
@@ -255,8 +272,26 @@ function AppContent() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      toast.success(`Attached: ${file.name}`);
-      setInput(prev => prev + (prev ? ' ' : '') + `[File: ${file.name}] `);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Data = event.target?.result as string;
+        const dataPrefix = base64Data.split(',')[0];
+        const mimeType = dataPrefix.match(/:(.*?);/)?.[1] || file.type;
+        const pureBase64 = base64Data.split(',')[1];
+
+        setAttachedFile({
+          name: file.name,
+          type: mimeType,
+          data: pureBase64
+        });
+        toast.success(`Synaptic Link established: ${file.name}`);
+      };
+
+      if (file.type.startsWith('image/')) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     }
   };
 
@@ -324,7 +359,8 @@ function AppContent() {
       ]).flat();
 
       let fullResponse = '';
-      const stream = streamChat(command, history, chatMode);
+      const stream = streamChat(command, history, chatMode, attachedFile);
+      setAttachedFile(null); // Clear synaptic link after dispatch
 
       for await (const delta of stream) {
         fullResponse += delta;
@@ -351,6 +387,103 @@ function AppContent() {
       setMessages(prev => prev.filter(m => m.id !== newMessageId));
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  useEffect(() => {
+    // Scan last message for file patterns
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage) {
+      const codeRegex = /```(\w+)\s+(?:title="([^"]+)"|filename="([^"]+)")?\s*([\s\S]*?)```/g;
+      let match;
+      const newFiles = [...virtualFiles];
+      let updated = false;
+
+      const contentToScan = lastMessage.response;
+      if (contentToScan) {
+        while ((match = codeRegex.exec(contentToScan)) !== null) {
+          const lang = match[1];
+          const name = match[2] || match[3] || `snippet_${newFiles.length + 1}.${lang === 'javascript' ? 'js' : lang === 'typescript' ? 'ts' : lang}`;
+          const content = match[4].trim();
+
+          if (!newFiles.find(f => f.name === name)) {
+            newFiles.push({ name, content, language: lang });
+            updated = true;
+          }
+        }
+      }
+
+      if (updated) setVirtualFiles(newFiles);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const commandActions = [
+    { 
+      id: 'new-chat', 
+      label: 'New AI Session', 
+      icon: <Plus className="w-4 h-4" />, 
+      shortcut: '⌘+SHIFT+N',
+      category: 'System', 
+      action: () => startNewSession() 
+    },
+    { 
+      id: 'toggle-friendly', 
+      label: `Switch to ${friendlyMode ? 'Terminal' : 'Normal'} UI`, 
+      icon: friendlyMode ? <Terminal className="w-4 h-4" /> : <Monitor className="w-4 h-4" />, 
+      category: 'Display', 
+      action: () => setFriendlyMode(!friendlyMode) 
+    },
+    { 
+      id: 'toggle-crt', 
+      label: `${crtEnabled ? 'Disable' : 'Enable'} CRT Effects`, 
+      icon: <Cpu className="w-4 h-4" />, 
+      category: 'Display', 
+      action: () => setCrtEnabled(!crtEnabled) 
+    },
+    { 
+      id: 'toggle-dark', 
+      label: `Toggle ${isDarkMode ? 'Light' : 'Dark'} Mode`, 
+      icon: isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />, 
+      category: 'Appearance', 
+      action: () => setIsDarkMode(!isDarkMode) 
+    },
+    { 
+      id: 'mode-standard', label: 'Standard Mode', icon: <MessageSquare className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('standard') },
+    { id: 'mode-code', label: 'Code Mode', icon: <Code className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('code') },
+    { id: 'mode-art', label: 'Art Mode', icon: <Sparkles className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('art') },
+    { id: 'mode-research', label: 'Research Mode', icon: <Brain className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('research') },
+  ];
+
+  const handleShare = async () => {
+    if (!user || !currentSessionId) return;
+
+    try {
+      const sessionRef = doc(db, 'users', user.uid, 'sessions', currentSessionId);
+      await updateDoc(sessionRef, {
+        isPublic: true,
+        sharedAt: serverTimestamp()
+      });
+
+      // In a real app, you'd have a separate route for public views.
+      // For this demo, we'll just simulate the URL.
+      const url = `${window.location.origin}/share/${currentSessionId}`;
+      setShareUrl(url);
+      setIsShareDialogOpen(true);
+      toast.success("Synaptic Snapshot published to the mesh.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Sharing sequence failed.");
     }
   };
 
@@ -405,26 +538,49 @@ function AppContent() {
         <div className={`flex h-screen w-full transition-all duration-500 font-sans ${friendlyMode ? 'bg-[#050505] text-zinc-300' : 'bg-black text-zinc-200'}`}>
           <Toaster theme="dark" position="top-center" />
           
-          {/* Main Sidebar */}
+          {crtEnabled && <TerminalEffects />}
+          
+          <CommandPalette 
+            isOpen={isCommandPaletteOpen}
+            onClose={() => setIsCommandPaletteOpen(false)}
+            actions={commandActions}
+          />
           <Sidebar className={`border-r transition-colors duration-500 overflow-hidden ${isDarkMode ? (friendlyMode ? 'border-zinc-800 bg-[#0f0f11]' : 'border-zinc-900 bg-zinc-950') : 'border-zinc-200 bg-white'}`}>
-            <SidebarHeader className="h-16 flex items-center px-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden border border-zinc-800 shadow-lg bg-black">
-                    <Logo 
-                      className="w-full h-full object-cover" 
-                      isDarkMode={isDarkMode} 
-                      imageSrc={isDarkMode ? darkLogo : lightLogo}
-                      isSprite={false} 
-                    />
-                </div>
+            <SidebarHeader className="flex flex-col p-2 gap-2 h-auto">
+              <div className="flex items-center gap-3 px-2 py-1">
+                <Logo 
+                  className="w-10 h-10 rounded-xl" 
+                  isDarkMode={isDarkMode} 
+                  imageSrc={isDarkMode ? darkLogo : lightLogo}
+                  isSprite={false} 
+                />
                 <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
                 </span>
               </div>
+
+              <div className="flex bg-zinc-900/50 p-1 rounded-lg gap-1 border border-zinc-800/50 mx-2">
+                <button 
+                  onClick={() => setActiveTab('chats')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'chats' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  Terminal
+                </button>
+                <button 
+                  onClick={() => setActiveTab('project')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'project' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <FileCode className="w-3 h-3" />
+                  Project
+                </button>
+              </div>
             </SidebarHeader>
 
             <SidebarContent className="px-2">
-              <SidebarGroup>
+              {activeTab === 'chats' ? (
+                <>
+                  <SidebarGroup>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton 
@@ -501,6 +657,47 @@ function AppContent() {
                   </div>
                 </ScrollArea>
               </SidebarGroup>
+              </>
+              ) : (
+                <div className="p-4 space-y-6">
+                   <div className="space-y-4">
+                     <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <Monitor className="w-3 h-3" />
+                        Virtual_Workspace
+                      </h3>
+                      
+                      {virtualFiles.length === 0 ? (
+                        <div className="py-20 text-center border border-dashed border-zinc-800 rounded-2xl">
+                           <FileCode className="w-8 h-8 text-zinc-800 mx-auto mb-3" />
+                           <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest text-zinc-700">No Synaptic Files Found</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {virtualFiles.map((file, i) => (
+                            <button 
+                              key={i}
+                              className="w-full flex items-center gap-3 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/50 hover:bg-zinc-900 transition-all group"
+                            >
+                              <div className="p-2 rounded-lg bg-zinc-950 border border-zinc-800 group-hover:border-theme-accent/50 transition-colors">
+                                <FileCode className="w-4 h-4 text-zinc-500 group-hover:text-theme-accent" />
+                              </div>
+                              <div className="flex-1 text-left overflow-hidden">
+                                <p className="text-sm font-bold text-zinc-300 truncate">{file.name}</p>
+                                <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">{file.language}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                   </div>
+                   
+                   <div className="p-4 rounded-2xl bg-theme-accent/5 border border-theme-accent/10">
+                      <p className="text-[10px] text-zinc-500 leading-relaxed font-medium">
+                        Synaptic extraction protocol automatically captures code blocks from your conversation and populates this terminal project.
+                      </p>
+                   </div>
+                </div>
+              )}
               
               <div className="mt-auto px-2 pb-4">
                 <Card className={`overflow-hidden border transition-all duration-500 ${friendlyMode ? 'bg-gradient-to-br from-theme-accent/5 to-white/5 border-zinc-800' : 'bg-theme-accent-glow border-theme-accent-glow'}`}>
@@ -703,6 +900,16 @@ function AppContent() {
               </div>
               
               <div className="flex items-center gap-2">
+                {currentSessionId && (
+                  <button 
+                    onClick={handleShare}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-[11px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-theme-accent hover:bg-theme-accent/10 border border-theme-accent/20' : 'bg-theme-accent text-white shadow-lg'}`}
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share
+                  </button>
+                )}
+                
                 <Dialog>
                   <DialogTrigger render={
                     <button className={`p-2 rounded-lg transition-all ${friendlyMode ? 'text-zinc-600 hover:text-zinc-200 hover:bg-white/5' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}>
@@ -863,6 +1070,20 @@ function AppContent() {
                   animate={{ opacity: 1, y: 0 }}
                   className={`rounded-xl p-1 border transition-all shadow-2xl relative backdrop-blur-xl ${isDarkMode ? 'bg-[#0f0f11]/80 border-zinc-800/50 focus-within:border-zinc-700' : 'bg-white/80 border-zinc-200 focus-within:border-zinc-300'}`}
                 >
+                  {attachedFile && (
+                    <div className="px-4 py-2 flex items-center justify-between border-b border-zinc-800/50">
+                      <div className="flex items-center gap-2">
+                        {attachedFile.type.startsWith('image/') ? <Image className="w-4 h-4 text-theme-accent" /> : <FileText className="w-4 h-4 text-theme-accent" />}
+                        <span className="text-xs font-mono text-zinc-400 truncate max-w-[200px]">{attachedFile.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => setAttachedFile(null)}
+                        className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <div className="pl-4 flex items-center gap-1 text-zinc-600 font-mono text-sm group-focus-within:text-theme-accent transition-colors">
                       <span>{">"}</span>
@@ -921,6 +1142,49 @@ function AppContent() {
           </main>
         </div>
       </SidebarProvider>
+
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-900 text-zinc-200 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-theme-accent" />
+              Snapshot Published
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Your neural session is now accessible via the synaptic mesh. This link is secret but public.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2 py-4">
+            <div className="grid flex-1 gap-2">
+              <Label htmlFor="link" className="sr-only">Link</Label>
+              <Input
+                id="link"
+                defaultValue={shareUrl}
+                readOnly
+                className="bg-zinc-900 border-zinc-800 text-zinc-400 text-xs font-mono"
+              />
+            </div>
+            <Button 
+              size="sm" 
+              className="px-3 bg-theme-accent hover:bg-theme-accent/90"
+              onClick={() => {
+                navigator.clipboard.writeText(shareUrl);
+                toast.success("Link copied to synaptic buffer");
+              }}
+            >
+              <span className="sr-only">Copy</span>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+          <DialogFooter className="sm:justify-start">
+            <DialogClose render={
+              <Button type="button" variant="secondary" className="bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border-none">
+                Close Connection
+              </Button>
+            } />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

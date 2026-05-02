@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Terminal, Cpu, MessageSquare, Code, Sparkles, Brain } from 'lucide-react';
+import { Copy, Check, Terminal, Cpu, MessageSquare, Code, Sparkles, Brain, Download, Eye } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
+import { jsPDF } from 'jspdf';
 import { useTheme } from '../lib/ThemeContext';
+import { CodeRunner } from './CodeRunner';
+import { LivePreview } from './LivePreview';
 
 interface ChatBlockProps {
   id: string;
@@ -23,6 +27,11 @@ interface ChatBlockProps {
 
 export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, timestamp, isStreaming, userName, lightLogo, darkLogo }) => {
   const [copied, setCopied] = useState(false);
+  const [previewState, setPreviewState] = useState<{ isOpen: boolean; code: string; language: string }>({
+    isOpen: false,
+    code: '',
+    language: ''
+  });
   const { chatMode, friendlyMode, isDarkMode } = useTheme();
 
   const finalLogo = isDarkMode ? darkLogo : lightLogo;
@@ -31,6 +40,39 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
     navigator.clipboard.writeText(response);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Basic PDF formatting
+      const margin = 10;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const textWidth = pageWidth - (margin * 2);
+      
+      doc.setFontSize(16);
+      doc.text("Worp AI Neural Export", margin, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generated on ${format(timestamp, 'yyyy-MM-dd HH:mm:ss')}`, margin, 30);
+      
+      doc.setDrawColor(200);
+      doc.line(margin, 35, pageWidth - margin, 35);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      
+      const splitText = doc.splitTextToSize(response, textWidth);
+      doc.text(splitText, margin, 45);
+      
+      doc.save(`worp-export-${id}.pdf`);
+      toast.success("Synaptic Archive physicalized as PDF.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Physicalization sequence failed.");
+    }
   };
 
   const modeIcons = {
@@ -158,11 +200,37 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                   p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
                   code: ({ children, className }) => {
                     const isInline = !className;
+                    const language = className?.replace('language-', '') || '';
+                    const codeString = String(children).replace(/\n$/, '');
+
                     return isInline ? (
                       <code className="px-1.5 py-0.5 rounded font-mono text-[13px] bg-zinc-900/50 text-theme-accent">{children}</code>
                     ) : (
                       <div className="relative group/code my-6">
-                        <pre className={`relative p-5 rounded-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/60 border-zinc-800' : 'bg-zinc-50 border-zinc-200'}`}>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover/code:opacity-100 transition-opacity flex gap-2 z-10">
+                           <button 
+                             onClick={() => setPreviewState({ isOpen: true, code: codeString, language })}
+                             className={`p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-theme-accent transition-all`}
+                             title="Preview"
+                           >
+                             <Eye className="w-3.5 h-3.5" />
+                           </button>
+                           <CodeRunner code={codeString} language={language} />
+                           <button 
+                             onClick={() => {
+                               navigator.clipboard.writeText(codeString);
+                               toast.success("Code copied to synaptic buffer");
+                             }}
+                             className={`p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white transition-all`}
+                           >
+                             <Copy className="w-3.5 h-3.5" />
+                           </button>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950 border-t border-x border-zinc-800 rounded-t-xl">
+                          <Terminal className="w-3 h-3 text-zinc-600" />
+                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em]">{language || 'text'}</span>
+                        </div>
+                        <pre className={`relative p-5 rounded-b-xl border border-zinc-800 overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/60' : 'bg-zinc-50 text-zinc-900'}`}>
                           <code>{children}</code>
                         </pre>
                       </div>
@@ -196,8 +264,16 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
             <button 
               onClick={handleCopy}
               className="p-2 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+              title="Copy to clipboard"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            </button>
+            <button 
+              onClick={handleExportPDF}
+              className="p-2 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+              title="Export as PDF"
+            >
+              <Download className="w-4 h-4" />
             </button>
           </div>
         </div>
