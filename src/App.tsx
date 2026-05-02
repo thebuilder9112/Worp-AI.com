@@ -73,8 +73,12 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, delete
 import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
-import darkLogo from './logo3.jpg';
-import lightLogo from './logo.png';
+
+// Use process.env.BASE_URL or import.meta.env.BASE_URL for more robust path resolution
+const logoPath = `${import.meta.env.BASE_URL || '/'}logo3.jpg`.replace(/\/+/g, '/');
+const darkLogo = logoPath;
+const lightLogo = logoPath;
+
 import { 
   Dialog,
   DialogContent,
@@ -414,7 +418,7 @@ function AppContent() {
                      isSprite={false} 
                    />
                 </div>
-                <span className={`font-bold text-lg tracking-tight transition-all ${isDarkMode ? 'bg-gradient-to-r from-white to-zinc-500' : 'bg-gradient-to-r from-zinc-900 to-zinc-500'} bg-clip-text text-transparent ${friendlyMode ? 'tracking-normal' : ''}`}>
+                <span className={`font-bold text-lg tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-600 via-zinc-900 to-zinc-600'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
                 </span>
               </div>

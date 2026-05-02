@@ -55,6 +55,13 @@
     --animate-blink-cursor: blink-cursor 1.2s step-end infinite;
     --animate-marquee: marquee var(--duration) infinite linear;
     --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+    --animate-shine: shine 3s linear infinite;
+
+  @keyframes shine {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
   @keyframes shimmer-slide {
   to {
     transform: translate(calc(100cqw - 100%), 0);

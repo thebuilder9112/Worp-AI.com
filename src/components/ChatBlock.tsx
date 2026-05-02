@@ -140,45 +140,56 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ command, response, timesta
         </div>
         
         <div className="flex-1 space-y-4">
-          <div className={`text-[16px] leading-relaxed markdown-friendly ${isDarkMode ? 'text-zinc-200' : 'text-zinc-700'}`}>
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-              components={{
-                p: ({ children }) => <p className="mb-6 last:mb-0">{children}</p>,
-                code: ({ children, className }) => {
-                  const isInline = !className;
-                  return isInline ? (
-                    <code className="px-1.5 py-0.5 rounded font-mono text-[13px] bg-zinc-900/50 text-theme-accent">{children}</code>
-                  ) : (
-                    <div className="relative group/code my-6">
-                      <pre className={`relative p-6 rounded-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/40 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200'}`}>
-                        <code>{children}</code>
-                      </pre>
+          <div className={`p-5 px-6 rounded-2xl rounded-tl-none shadow-sm border ${
+            isDarkMode 
+              ? 'bg-[#151518] border-zinc-800 text-zinc-200' 
+              : 'bg-white border-zinc-200 text-zinc-700'
+          }`}>
+            <div className="flex items-center gap-2 mb-4 border-b border-zinc-800/20 pb-2">
+              <span className="text-[10px] font-bold text-theme-accent uppercase tracking-wider animate-shine bg-gradient-to-r from-theme-accent via-white to-theme-accent bg-clip-text text-transparent bg-[length:200%_auto]">Neural_Core_Output</span>
+              <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
+              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-50">{id}</span>
+            </div>
+            <div className={`text-[15px] leading-relaxed markdown-friendly`}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                  code: ({ children, className }) => {
+                    const isInline = !className;
+                    return isInline ? (
+                      <code className="px-1.5 py-0.5 rounded font-mono text-[13px] bg-zinc-900/50 text-theme-accent">{children}</code>
+                    ) : (
+                      <div className="relative group/code my-6">
+                        <pre className={`relative p-5 rounded-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/60 border-zinc-800' : 'bg-zinc-50 border-zinc-200'}`}>
+                          <code>{children}</code>
+                        </pre>
+                      </div>
+                    );
+                  },
+                  img: ({ src, alt }) => (
+                    <div className={`my-6 rounded-2xl overflow-hidden border shadow-sm ${isDarkMode ? 'border-zinc-800/50' : 'border-zinc-200'}`}>
+                      <img 
+                        src={src} 
+                        alt={alt || "Worp Neural Visual"} 
+                        className="w-full h-auto object-cover max-h-[600px]"
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
-                  );
-                },
-                img: ({ src, alt }) => (
-                  <div className={`my-6 rounded-2xl overflow-hidden border shadow-sm ${isDarkMode ? 'border-zinc-800/50' : 'border-zinc-200'}`}>
-                    <img 
-                      src={src} 
-                      alt={alt || "Worp Neural Visual"} 
-                      className="w-full h-auto object-cover max-h-[600px]"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                ),
-              }}
-            >
-              {response}
-            </ReactMarkdown>
-            {isStreaming && (
-              <motion.span 
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity }}
-                className="inline-block w-2 h-4 bg-theme-accent ml-1 align-middle" 
-              />
-            )}
+                  ),
+                }}
+              >
+                {response}
+              </ReactMarkdown>
+              {isStreaming && (
+                <motion.span 
+                  animate={{ opacity: [0, 1, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                  className="inline-block w-2 h-4 bg-theme-accent ml-1 align-middle" 
+                />
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
