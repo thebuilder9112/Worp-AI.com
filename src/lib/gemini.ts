@@ -4,10 +4,10 @@ let genAI: GoogleGenAI | null = null;
 
 function getAI() {
   if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (import.meta as any).env.VITE_API_KEY;
 
     if (!apiKey) {
-      throw new Error("Neural link failed: Missing GEMINI_API_KEY. Please ensure the API key is set in your environment.");
+      throw new Error("Neural link failed: Missing VITE_API_KEY. Please ensure the API key is set in your environment.");
     }
     genAI = new GoogleGenAI({ apiKey });
   }
