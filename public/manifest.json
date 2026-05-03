@@ -3,14 +3,9 @@
   "name": "Worp AI Neural Core",
   "icons": [
     {
-      "src": "logo.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "favicon.ico",
+      "type": "image/x-icon",
+      "sizes": "any"
     }
   ],
   "start_url": ".",
