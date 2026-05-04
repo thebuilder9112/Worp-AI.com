@@ -1,5 +1,6 @@
 const MODEL = 'gemini-2.0-flash';
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const PROXY_URL = import.meta.env.VITE_PROXY_URL as string | undefined;
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   standard: `You are Worp AI — a sharp, knowledgeable assistant with a direct, no-fluff personality. Give clear, well-structured answers. Use markdown headings, bullet points, and code blocks when they aid clarity. Skip excessive pleasantries.`,
@@ -33,29 +34,39 @@ export async function* streamChat(
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard',
   attachedFile?: { name: string, type: string, data: string } | null
 ) {
-  const apiKey = import.meta.env.VITE_API_KEY;
-  if (!apiKey) throw new Error('API key not configured. Set VITE_API_KEY.');
+  let response: Response;
 
-  const userParts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
-    { text: message },
-  ];
-  if (attachedFile) {
-    userParts.push({ inlineData: { mimeType: attachedFile.type, data: attachedFile.data } });
-  }
-
-  const contents = [...history, { role: 'user', parts: userParts }];
-
-  const response = await fetch(
-    `${BASE_URL}/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
-    {
+  if (PROXY_URL) {
+    response = await fetch(`${PROXY_URL}/api/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS.standard }] },
-        contents,
-      }),
+      body: JSON.stringify({ message, history, mode, attachedFile }),
+    });
+  } else {
+    const apiKey = import.meta.env.VITE_API_KEY;
+    if (!apiKey) throw new Error('API key not configured. Set VITE_API_KEY or VITE_PROXY_URL.');
+
+    const userParts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
+      { text: message },
+    ];
+    if (attachedFile) {
+      userParts.push({ inlineData: { mimeType: attachedFile.type, data: attachedFile.data } });
     }
-  );
+
+    const contents = [...history, { role: 'user', parts: userParts }];
+
+    response = await fetch(
+      `${BASE_URL}/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS.standard }] },
+          contents,
+        }),
+      }
+    );
+  }
 
   if (!response.ok) {
     const err = await response.text().catch(() => response.statusText);
