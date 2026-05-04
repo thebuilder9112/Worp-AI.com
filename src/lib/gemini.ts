@@ -1,6 +1,5 @@
 const MODEL = 'gemini-2.0-flash';
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const PROXY_URL = import.meta.env.VITE_PROXY_URL as string | undefined;
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   standard: `You are Worp AI — a sharp, knowledgeable assistant with a direct, no-fluff personality. Give clear, well-structured answers. Use markdown headings, bullet points, and code blocks when they aid clarity. Skip excessive pleasantries.`,
@@ -34,6 +33,9 @@ export async function* streamChat(
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard',
   attachedFile?: { name: string, type: string, data: string } | null
 ) {
+  const PROXY_URL = (import.meta.env.VITE_PROXY_URL || '').trim();
+  console.log('[gemini] PROXY_URL:', PROXY_URL || '(none)', '| API_KEY set:', !!import.meta.env.VITE_API_KEY);
+
   let response: Response;
 
   if (PROXY_URL) {
