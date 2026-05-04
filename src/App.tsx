@@ -123,6 +123,36 @@ export default function App() {
   );
 }
 
+const MODE_SUGGESTIONS: Record<string, { label: string; icon: React.ReactNode }[]> = {
+  standard: [
+    { label: "Explain quantum computing simply", icon: <Brain className="w-3 h-3" /> },
+    { label: "Summarize the latest AI news", icon: <Sparkles className="w-3 h-3" /> },
+    { label: "How does the internet work?", icon: <Search className="w-3 h-3" /> },
+  ],
+  code: [
+    { label: "Write a binary search in TypeScript", icon: <Code className="w-3 h-3" /> },
+    { label: "Build a React custom hook", icon: <Terminal className="w-3 h-3" /> },
+    { label: "Explain Big-O with examples", icon: <Zap className="w-3 h-3" /> },
+  ],
+  art: [
+    { label: "Design a dark terminal UI palette", icon: <Palette className="w-3 h-3" /> },
+    { label: "Write a sci-fi opening scene", icon: <PenLine className="w-3 h-3" /> },
+    { label: "Tips for minimalist typography", icon: <Sparkles className="w-3 h-3" /> },
+  ],
+  research: [
+    { label: "Impact of AI on labor markets", icon: <Brain className="w-3 h-3" /> },
+    { label: "Explain black hole entropy", icon: <Search className="w-3 h-3" /> },
+    { label: "Analyze CRISPR breakthroughs", icon: <BookOpen className="w-3 h-3" /> },
+  ],
+};
+
+const MODE_CAPABILITIES: Record<string, string[]> = {
+  standard: ["Answer any question", "Summarize content", "Brainstorm ideas"],
+  code: ["Write production code", "Debug & optimize", "Explain algorithms"],
+  art: ["Design direction", "Creative writing", "Visual concepts"],
+  research: ["Deep analysis", "Structured breakdowns", "Cited reasoning"],
+};
+
 function AppContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -993,11 +1023,7 @@ function AppContent() {
                               </p>
 
                               <div className="flex flex-wrap items-center justify-center gap-3">
-                                {[
-                                  "Analyze complex codebases",
-                                  "Generate creative art",
-                                  "Solve logical puzzles"
-                                ].map((tag, idx) => (
+                                {(MODE_CAPABILITIES[chatMode] ?? MODE_CAPABILITIES.standard).map((tag, idx) => (
                                   <span key={idx} className={`text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border ${isDarkMode ? 'border-zinc-800 text-zinc-600' : 'border-zinc-200 text-zinc-400'}`}>
                                     {tag}
                                   </span>
@@ -1042,28 +1068,29 @@ function AppContent() {
             <div className="px-6 pb-6 pt-2 z-40 transition-all duration-700 bg-transparent flex flex-col items-center">
               <div className="max-w-4xl w-full">
                 {/* Suggestions always above input - more compact and subtle */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-wrap gap-2 justify-center sm:justify-start mb-4 opacity-90"
-                >
-                  {[
-                    { label: "Latest tech news", icon: <Sparkles className="w-3 h-3" /> },
-                    { label: "Show me a photo of a galaxy", icon: <Image className="w-3 h-3" /> },
-                    { label: "Find best links for React", icon: <Search className="w-3 h-3" /> },
-                  ].map((item, i) => (
-                    <motion.button 
-                      key={i}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => { setInput(item.label); handleSendCommand(item.label); }}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-[11px] font-medium border ${isDarkMode ? 'bg-zinc-900/50 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800 hover:text-zinc-200' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`}
-                    >
-                      <span className="text-theme-accent">{item.icon}</span>
-                      {item.label}
-                    </motion.button>
-                  ))}
-                </motion.div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={chatMode}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-wrap gap-2 justify-center sm:justify-start mb-4 opacity-90"
+                  >
+                    {(MODE_SUGGESTIONS[chatMode] ?? MODE_SUGGESTIONS.standard).map((item, i) => (
+                      <motion.button
+                        key={i}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => { setInput(item.label); handleSendCommand(item.label); }}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-[11px] font-medium border ${isDarkMode ? 'bg-zinc-900/50 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800 hover:text-zinc-200' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`}
+                      >
+                        <span className="text-theme-accent">{item.icon}</span>
+                        {item.label}
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
                 
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
