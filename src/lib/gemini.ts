@@ -1,4 +1,3 @@
-const MODEL = 'gemini-2.0-flash';
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const CORE_PROTOCOLS = `
@@ -38,10 +37,15 @@ export async function* streamChat(
   message: string,
   history: { role: 'user' | 'model', parts: { text: string }[] }[],
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard',
-  attachedFile?: { name: string, type: string, data: string } | null
+  attachedFile?: { name: string, type: string, data: string } | null,
+  aiModel: string = 'gemini-2.0-flash'
 ) {
   const PROXY_URL = (import.meta.env.VITE_PROXY_URL || '').trim();
-  console.log('[gemini] PROXY_URL:', PROXY_URL || '(none)', '| API_KEY set:', !!import.meta.env.VITE_API_KEY);
+  console.log('[gemini] PROXY_URL:', PROXY_URL || '(none)', '| API_KEY set:', !!import.meta.env.VITE_API_KEY, '| Model:', aiModel);
+
+  // Synaptic Compression: Prune history to keep only the last 15 exchanges (30 messages)
+  // This keeps the context focused and prevents token bloat.
+  const prunedHistory = history.length > 30 ? history.slice(-30) : history;
 
   let response: Response;
 
@@ -49,7 +53,7 @@ export async function* streamChat(
     response = await fetch(`${PROXY_URL}/api/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history, mode, attachedFile }),
+      body: JSON.stringify({ message, history: prunedHistory, mode, attachedFile, model: aiModel }),
     });
   } else {
     const apiKey = import.meta.env.VITE_API_KEY;
@@ -62,10 +66,10 @@ export async function* streamChat(
       userParts.push({ inlineData: { mimeType: attachedFile.type, data: attachedFile.data } });
     }
 
-    const contents = [...history, { role: 'user', parts: userParts }];
+    const contents = [...prunedHistory, { role: 'user', parts: userParts }];
 
     response = await fetch(
-      `${BASE_URL}/${MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      `${BASE_URL}/${aiModel}:streamGenerateContent?alt=sse&key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

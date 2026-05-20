@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Play, RotateCcw, X, Terminal, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -19,6 +19,14 @@ export const CodeRunner: React.FC<CodeRunnerProps> = ({ code, language }) => {
     
     // Safety check for basic JS execution
     try {
+      // NEURAL GUARD: Filter sensitive keywords to prevent data exfiltration
+      const sensitiveKeywords = ['localStorage', 'sessionStorage', 'cookie', 'fetch', 'XMLHttpRequest', 'indexedDB', 'alert'];
+      const foundKeyword = sensitiveKeywords.find(kw => code.includes(kw));
+      
+      if (foundKeyword) {
+        throw new Error(`Neural Guard Blocked: Unauthorized access to '${foundKeyword}' detected.`);
+      }
+
       const logs: string[] = [];
       const customConsole = {
         log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
@@ -27,7 +35,6 @@ export const CodeRunner: React.FC<CodeRunnerProps> = ({ code, language }) => {
       };
 
       // Create a function from the code
-      // Note: This is an evaluation, be mindful of security in real production
       const runner = new Function('console', code);
       runner(customConsole);
       
@@ -105,3 +112,4 @@ export const CodeRunner: React.FC<CodeRunnerProps> = ({ code, language }) => {
     </div>
   );
 };
+

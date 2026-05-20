@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
@@ -173,6 +173,7 @@ function AppContent() {
     setTheme, setAccentColor, accentColor, 
     user, profile, loading, 
     chatMode, setChatMode,
+    aiModel, setAIModel,
     friendlyMode, setFriendlyMode,
     isDarkMode, setIsDarkMode
   } = useTheme();
@@ -389,7 +390,7 @@ function AppContent() {
       ]).flat();
 
       let fullResponse = '';
-      const stream = streamChat(command, history, chatMode, attachedFile);
+      const stream = streamChat(command, history, chatMode, attachedFile, aiModel);
       setAttachedFile(null); // Clear synaptic link after dispatch
 
       for await (const delta of stream) {
@@ -463,7 +464,7 @@ function AppContent() {
       id: 'new-chat', 
       label: 'New AI Session', 
       icon: <Plus className="w-4 h-4" />, 
-      shortcut: '⌘+SHIFT+N',
+      shortcut: 'âŒ˜+SHIFT+N',
       category: 'System', 
       action: () => startNewSession() 
     },
@@ -625,7 +626,33 @@ function AppContent() {
               </SidebarGroup>
 
               <SidebarGroup>
-                <SidebarGroupLabel className="text-zinc-500 font-mono text-[9px] tracking-[0.2em] uppercase py-2">Chat Modes</SidebarGroupLabel>
+                <SidebarGroupLabel className="text-zinc-500 font-mono text-[9px] tracking-[0.2em] uppercase py-2">Neural Engine</SidebarGroupLabel>
+                <SidebarMenu>
+                  {[
+                    { id: "gemini-2.0-flash", label: "Neural Flash 2.0", icon: <Zap className="w-4 h-4" />, desc: "Ultra-fast synaptic response" },
+                    { id: "gemini-1.5-pro", label: "Intelligence Pro 1.5", icon: <Brain className="w-4 h-4" />, desc: "Complex logic & long-context" }
+                  ].map((model) => (
+                    <SidebarMenuItem key={model.id}>
+                      <SidebarMenuButton
+                        onClick={() => setAIModel(model.id as any)}
+                        isActive={aiModel === model.id}
+                        className={`rounded-lg py-6 ${aiModel === model.id ? "text-theme-accent bg-theme-accent-glow" : "text-zinc-500"}`}
+                      >
+                        <div className="flex flex-col items-start gap-0.5 overflow-hidden">
+                           <div className="flex items-center gap-2">
+                             {model.icon}
+                             <span className="text-[10px] font-black uppercase tracking-widest">{model.label}</span>
+                           </div>
+                           <span className="text-[8px] text-zinc-600 font-medium truncate w-full">{model.desc}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-zinc-500 font-mono text-[9px] tracking-[0.2em] uppercase py-2">Chat Protocols</SidebarGroupLabel>
                 <SidebarMenu>
                   {(['standard', 'code', 'art', 'research'] as ChatMode[]).map((mode, i) => (
                     <motion.div
@@ -1215,3 +1242,5 @@ function AppContent() {
     </TooltipProvider>
   );
 }
+
+
