@@ -1,6 +1,10 @@
 import React from 'react';
 
-export const TerminalEffects: React.FC = () => {
+interface TerminalEffectsProps {
+  isDarkMode?: boolean;
+}
+
+export const TerminalEffects: React.FC<TerminalEffectsProps> = ({ isDarkMode }) => {
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">
       {/* Scanlines */}
@@ -12,11 +16,12 @@ export const TerminalEffects: React.FC = () => {
         }}
       />
       
-      {/* Subtle Screen Flicker */}
-      <div className="absolute inset-0 animate-flicker pointer-events-none opacity-[0.015] bg-white" />
+      {/* Subtle Screen Flicker - White strobe in light mode, subtle black dimming in dark mode */}
+      <div className={`absolute inset-0 animate-flicker pointer-events-none opacity-[0.015] ${isDarkMode ? 'bg-black' : 'bg-white'}`} />
       
       {/* Static/Noise overlay */}
       <div className="absolute inset-0 opacity-[0.02] mix-blend-overlay pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+
       
       <style>{`
         @keyframes flicker {

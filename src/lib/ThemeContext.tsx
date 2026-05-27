@@ -57,12 +57,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setProfile(syncedProfile);
         setThemeState(syncedProfile.theme as ThemeType || 'warp-dark');
         setAccentColorState(syncedProfile.accentColor || '113 113 122');
-        // @ts-ignore
         setFriendlyModeState(syncedProfile.friendlyMode || false);
-        // @ts-ignore
         setIsDarkModeState(syncedProfile.isDarkMode !== false); // Default to true
-        // @ts-ignore
-        setAIModelState(syncedProfile.aiModel || 'gemini-2.0-flash');
+        setAIModelState((syncedProfile.aiModel as AIModelType) || 'gemini-2.0-flash');
 
         // Listen for real-time profile updates
         const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {

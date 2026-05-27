@@ -26,6 +26,9 @@ export interface UserProfile {
   displayName: string;
   theme?: string;
   accentColor?: string;
+  friendlyMode?: boolean;
+  isDarkMode?: boolean;
+  aiModel?: string;
 }
 
 export const syncUserProfile = async (user: User) => {

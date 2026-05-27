@@ -569,7 +569,7 @@ function AppContent() {
         <div className={`flex h-screen w-full transition-all duration-500 font-sans ${friendlyMode ? 'bg-[#050505] text-zinc-300' : 'bg-black text-zinc-200'}`}>
           <Toaster theme="dark" position="top-center" />
           
-          {crtEnabled && <TerminalEffects />}
+          {crtEnabled && <TerminalEffects isDarkMode={isDarkMode} />}
           
           <CommandPalette 
             isOpen={isCommandPaletteOpen}
@@ -920,7 +920,7 @@ function AppContent() {
           {/* Main Area */}
           <main className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDarkMode ? '' : 'bg-white text-zinc-900 border-l border-zinc-200'}`}>
             {/* Background patterns */}
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               <motion.div 
                 key={`${friendlyMode}-${isDarkMode}`}
                 initial={{ opacity: 0 }}
