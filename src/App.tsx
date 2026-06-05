@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
@@ -76,7 +76,7 @@ import { ShimmerButton } from '@/components/ui/shimmer-button';
 import { BlurFade } from '@/components/ui/blur-fade';
 import { Toaster, toast } from 'sonner';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, limit, updateDoc } from 'firebase/firestore';
-import { db, signInWithGoogle, logout, auth } from './lib/firebase';
+import { db, signInWithGoogle, logout, auth, signInWithEmail, signUpWithEmail } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 import { TerminalEffects } from './components/TerminalEffects';
@@ -522,10 +522,12 @@ function AppContent() {
     try {
       await signInWithGoogle();
       toast.success("Welcome to Worp AI Console");
-    } catch (error) {
-      toast.error("Failed to sign in");
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      toast.error(`Failed to sign in: ${error.code || error.message || error}`);
     }
   };
+
 
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const hex = e.target.value;
