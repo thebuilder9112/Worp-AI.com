@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/stream.ts": {
-      "maxDuration": 30
-    }
-  }
-}

@@ -1,4 +1,4 @@
-﻿import tailwindcss from '@tailwindcss/vite';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: mode === 'production' ? '/Worp-AI.com/' : '/',
+    base: '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
@@ -18,9 +18,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify - file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true' ? { clientPort: 3000, port: 24678 } : false,
+      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      hmr: process.env.DISABLE_HMR !== 'true',
     },
   };
 });
-

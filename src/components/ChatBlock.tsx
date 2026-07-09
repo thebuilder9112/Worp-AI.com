@@ -188,9 +188,9 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
               : 'bg-white border-zinc-200 text-zinc-700'
           }`}>
             <div className="flex items-center gap-2 mb-4 border-b border-zinc-800/20 pb-2">
-              <span className="text-[10px] font-bold text-theme-accent uppercase tracking-[0.15em]">Worp_AI</span>
-              <span className="w-1 h-1 rounded-full bg-zinc-700" />
-              <span className="text-[10px] text-zinc-600 font-mono">{format(timestamp, 'HH:mm')}</span>
+              <span className="text-[10px] font-bold text-theme-accent uppercase tracking-wider animate-shine bg-gradient-to-r from-theme-accent via-white to-theme-accent bg-clip-text text-transparent bg-[length:200%_auto]">Neural_Core_Output</span>
+              <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
+              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-50">{timestamp.getTime()}</span>
             </div>
             <div className={`text-[15px] leading-relaxed markdown-friendly`}>
               <ReactMarkdown 
@@ -226,13 +226,11 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                              <Copy className="w-3.5 h-3.5" />
                            </button>
                         </div>
-                        <div className={`flex items-center justify-between px-4 py-2 border-t border-x border-zinc-800 rounded-t-xl ${isDarkMode ? 'bg-zinc-950' : 'bg-zinc-100'}`}>
-                          <div className="flex items-center gap-2">
-                            <Terminal className="w-3 h-3 text-zinc-500" />
-                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.15em]">{language || 'text'}</span>
-                          </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950 border-t border-x border-zinc-800 rounded-t-xl">
+                          <Terminal className="w-3 h-3 text-zinc-600" />
+                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em]">{language || 'text'}</span>
                         </div>
-                        <pre className={`relative p-5 rounded-b-xl border border-zinc-800 overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-zinc-950/80 text-zinc-300' : 'bg-zinc-50 text-zinc-800'}`}>
+                        <pre className={`relative p-5 rounded-b-xl border border-zinc-800 overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/60' : 'bg-zinc-50 text-zinc-900'}`}>
                           <code>{children}</code>
                         </pre>
                       </div>

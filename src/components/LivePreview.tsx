@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Maximize2, Minimize2, RotateCcw, X, Eye, Code as CodeIcon, FileCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -20,7 +20,6 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ code, language, isOpen
       const doc = `
         <html>
           <head>
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'unsafe-inline'; img-src * data:; connect-src 'none';">
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
               body { background: transparent; color: white; font-family: sans-serif; padding: 20px; }
@@ -116,4 +115,3 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ code, language, isOpen
     </AnimatePresence>
   );
 };
-

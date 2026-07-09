@@ -5,7 +5,6 @@ import { doc, updateDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
 
 export type ThemeType = 'warp-emerald' | 'cyber-pulse' | 'ocean-depth' | 'sunset-lava' | 'royal-void' | 'arctic-ice' | 'custom' | 'warp-dark';
 export type ChatMode = 'standard' | 'code' | 'art' | 'research';
-export type AIModelType = 'gemini-2.0-flash' | 'gemini-1.5-pro';
 
 interface ThemeContextType {
   theme: ThemeType;
@@ -14,8 +13,6 @@ interface ThemeContextType {
   setAccentColor: (color: string) => void;
   chatMode: ChatMode;
   setChatMode: (mode: ChatMode) => void;
-  aiModel: AIModelType;
-  setAIModel: (model: AIModelType) => void;
   friendlyMode: boolean;
   setFriendlyMode: (val: boolean) => void;
   isDarkMode: boolean;
@@ -44,7 +41,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<ThemeType>('warp-dark');
   const [accentColor, setAccentColorState] = useState<string>('113 113 122');
   const [chatMode, setChatModeState] = useState<ChatMode>('standard');
-  const [aiModel, setAIModelState] = useState<AIModelType>('gemini-2.0-flash');
   const [friendlyMode, setFriendlyModeState] = useState(false);
   const [isDarkMode, setIsDarkModeState] = useState(true);
 
@@ -57,23 +53,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setProfile(syncedProfile);
         setThemeState(syncedProfile.theme as ThemeType || 'warp-dark');
         setAccentColorState(syncedProfile.accentColor || '113 113 122');
+        // @ts-ignore
         setFriendlyModeState(syncedProfile.friendlyMode || false);
+        // @ts-ignore
         setIsDarkModeState(syncedProfile.isDarkMode !== false); // Default to true
-        setAIModelState((syncedProfile.aiModel as AIModelType) || 'gemini-2.0-flash');
-
+        
         // Listen for real-time profile updates
         const profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), (doc) => {
            if (doc.exists()) {
-             const data = doc.data() as UserProfile & { friendlyMode?: boolean; isDarkMode?: boolean; aiModel?: string };
+             const data = doc.data() as UserProfile & { friendlyMode?: boolean; isDarkMode?: boolean };
              setProfile(data);
              setThemeState(data.theme as ThemeType || 'warp-dark');
              setAccentColorState(data.accentColor || '113 113 122');
              setFriendlyModeState(data.friendlyMode || false);
              setIsDarkModeState(data.isDarkMode !== false);
-             setAIModelState((data.aiModel as AIModelType) || 'gemini-2.0-flash');
            }
         });
-
+        
         setLoading(false);
         return () => profileUnsubscribe();
       } else {
@@ -82,10 +78,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const savedColor = localStorage.getItem('warpmind-accent');
         const savedFriendly = localStorage.getItem('warpmind-friendly') === 'true';
         const savedDark = localStorage.getItem('warpmind-dark') !== 'false';
-        const savedModel = localStorage.getItem('warpmind-model') as AIModelType;
         if (savedTheme) setThemeState(savedTheme);
         if (savedColor) setAccentColorState(savedColor);
-        if (savedModel) setAIModelState(savedModel);
         setFriendlyModeState(savedFriendly);
         setIsDarkModeState(savedDark);
         setLoading(false);
@@ -99,7 +93,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeState(newTheme);
     const newAccent = THEME_ACCENTS[newTheme] || accentColor;
     setAccentColorState(newAccent);
-
+    
+    // Auto toggle dark mode based on theme if desirable, but user wants manual toggle usually.
+    // However, user said "dark one for the dark theme and the light one for the light theme".
+    // I'll assume warp-dark specifically wants dark mode, and maybe others can be light?
     if (newTheme === 'warp-dark') setIsDarkModeState(true);
     if (newTheme === 'arctic-ice') setIsDarkModeState(false);
 
@@ -107,7 +104,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('warpmind-theme', newTheme);
       localStorage.setItem('warpmind-accent', newAccent);
     }
-
+    
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), {
         theme: newTheme,
@@ -121,7 +118,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setAccentColor = async (color: string) => {
     setAccentColorState(color);
     if (!user) localStorage.setItem('warpmind-accent', color);
-
+    
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), {
         accentColor: color,
@@ -134,17 +131,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setChatMode = (mode: ChatMode) => {
     setChatModeState(mode);
-  };
-
-  const setAIModel = async (model: AIModelType) => {
-    setAIModelState(model);
-    if (!user) localStorage.setItem('warpmind-model', model);
-    if (user) {
-      await updateDoc(doc(db, 'users', user.uid), {
-        aiModel: model,
-        updatedAt: serverTimestamp()
-      });
-    }
   };
 
   const setFriendlyMode = async (val: boolean) => {
@@ -172,7 +158,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.setAttribute('data-chat-mode', chatMode);
-    document.documentElement.setAttribute('data-ai-model', aiModel);
     document.documentElement.setAttribute('data-friendly', String(friendlyMode));
     document.documentElement.setAttribute('data-dark', String(isDarkMode));
     if (isDarkMode) {
@@ -182,17 +167,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     document.documentElement.style.setProperty('--accent-color', accentColor);
     document.documentElement.style.setProperty('--accent-glow', `${accentColor} / 0.15`);
-  }, [theme, accentColor, chatMode, aiModel, friendlyMode, isDarkMode]);
+  }, [theme, accentColor, chatMode, friendlyMode, isDarkMode]);
 
   return (
-    <ThemeContext.Provider value={{
-      theme, setTheme,
-      accentColor, setAccentColor,
+    <ThemeContext.Provider value={{ 
+      theme, setTheme, 
+      accentColor, setAccentColor, 
       chatMode, setChatMode,
-      aiModel, setAIModel,
       friendlyMode, setFriendlyMode,
       isDarkMode, setIsDarkMode,
-      user, profile, loading
+      user, profile, loading 
     }}>
       {children}
     </ThemeContext.Provider>
