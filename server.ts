@@ -46,9 +46,16 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        res.write(`data: ${JSON.stringify({ error: "API Key missing. Please set GEMINI_API_KEY in the Settings > Secrets menu." })}\n\n`);
+      let apiKey = process.env.GEMINI_API_KEY;
+      const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
+      const hasValidViteKey = process.env.VITE_API_KEY && process.env.VITE_API_KEY.startsWith("AIza");
+      
+      if (isPlaceholder && hasValidViteKey) {
+        apiKey = process.env.VITE_API_KEY;
+      }
+      
+      if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE")) {
+        res.write(`data: ${JSON.stringify({ error: "Gemini API Key missing or invalid. Please configure GEMINI_API_KEY in Settings > Secrets." })}\n\n`);
         return res.end();
       }
 
@@ -76,19 +83,27 @@ async function startServer() {
 
       res.write('data: [DONE]\n\n');
       res.end();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Gemini Proxy Error:", error);
-      res.write(`data: ${JSON.stringify({ error: "Neural link failure" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: error?.message || "Neural link failure" })}\n\n`);
       res.end();
     }
   });
 
   // Older non-streaming route for backwards compatibility if needed
-    app.post("/api/chat", async (req, res) => {
+  app.post("/api/chat", async (req, res) => {
     try {
       const { messages } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
+      
+      let apiKey = process.env.GEMINI_API_KEY;
+      const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
+      const hasValidViteKey = process.env.VITE_API_KEY && process.env.VITE_API_KEY.startsWith("AIza");
+      
+      if (isPlaceholder && hasValidViteKey) {
+        apiKey = process.env.VITE_API_KEY;
+      }
+
+      if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE")) {
         return res.status(500).json({ error: "Gemini API Key (GEMINI_API_KEY) is not configured on the server." });
       }
 
