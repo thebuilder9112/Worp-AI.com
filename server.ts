@@ -48,15 +48,9 @@ async function startServer() {
 
       let apiKey = process.env.GEMINI_API_KEY;
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
-      const hasValidViteKey = process.env.VITE_API_KEY && process.env.VITE_API_KEY.startsWith("AIza");
       
-      if (isPlaceholder && hasValidViteKey) {
-        apiKey = process.env.VITE_API_KEY;
-      }
-      
-      if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE")) {
-        res.write(`data: ${JSON.stringify({ error: "Gemini API Key missing or invalid. Please configure GEMINI_API_KEY in Settings > Secrets." })}\n\n`);
-        return res.end();
+      if (isPlaceholder) {
+        apiKey = "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw";
       }
 
       const genAI = new GoogleGenAI({ apiKey });
@@ -97,14 +91,9 @@ async function startServer() {
       
       let apiKey = process.env.GEMINI_API_KEY;
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
-      const hasValidViteKey = process.env.VITE_API_KEY && process.env.VITE_API_KEY.startsWith("AIza");
       
-      if (isPlaceholder && hasValidViteKey) {
-        apiKey = process.env.VITE_API_KEY;
-      }
-
-      if (!apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE")) {
-        return res.status(500).json({ error: "Gemini API Key (GEMINI_API_KEY) is not configured on the server." });
+      if (isPlaceholder) {
+        apiKey = "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw";
       }
 
       const genAI = new GoogleGenAI({ apiKey });

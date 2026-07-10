@@ -137,21 +137,6 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
   const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
-  const [localApiKey, setLocalApiKey] = useState(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('WORP_GEMINI_API_KEY') || '' : '';
-  });
-
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setLocalApiKey(val);
-    if (typeof window !== 'undefined') {
-      if (val) {
-        localStorage.setItem('WORP_GEMINI_API_KEY', val);
-      } else {
-        localStorage.removeItem('WORP_GEMINI_API_KEY');
-      }
-    }
-  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -866,37 +851,6 @@ function AppContent() {
                                 </span>
                               </div>
                             </div>
-                          </div>
-                        </div>
-
-                        <Separator className="bg-zinc-900" />
-
-                        <div className="space-y-4">
-                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                            <Brain className="w-3.5 h-3.5" /> Static Hosting Fallback
-                          </h4>
-                          <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/50 space-y-3">
-                            <div>
-                              <Label htmlFor="localApiKey" className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">GEMINI_API_KEY</Label>
-                              <p className="text-[9px] text-zinc-600 mb-2">Required only when exporting or deploying Worp AI to a static provider like GitHub Pages.</p>
-                              <Input 
-                                id="localApiKey"
-                                type="password" 
-                                placeholder="Enter AIzaSy... API Key" 
-                                value={localApiKey}
-                                onChange={handleApiKeyChange}
-                                className="bg-zinc-900 border-zinc-800 text-xs font-mono text-zinc-200 mt-1 placeholder:text-zinc-700 focus-visible:ring-theme-accent" 
-                              />
-                            </div>
-                            {localApiKey ? (
-                              <div className="text-[9px] font-bold text-emerald-500 flex items-center gap-1.5 font-mono uppercase tracking-widest">
-                                <Zap className="w-3 h-3 text-emerald-500 animate-pulse" /> Keys configured & active locally
-                              </div>
-                            ) : (
-                              <div className="text-[9px] font-bold text-zinc-600 flex items-center gap-1.5 font-mono uppercase tracking-widest">
-                                <Monitor className="w-3 h-3 text-zinc-600" /> Using server connection by default
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>
