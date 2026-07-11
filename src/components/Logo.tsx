@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { cn } from '@/lib/utils';
 
 export const Logo = ({ 
@@ -19,6 +19,8 @@ export const Logo = ({
   spriteDirection?: 'vertical' | 'horizontal';
 }) => {
   const finalSrc = isDarkMode ? (darkImageSrc || imageSrc) : (lightImageSrc || imageSrc);
+  const diskMaskId = useId();
+  const sphereMaskId = useId();
 
   if (finalSrc) {
     if (isSprite) {
@@ -58,19 +60,26 @@ export const Logo = ({
       xmlns="http://www.w3.org/2000/svg" 
       className={cn("w-full h-full", className)}
     >
+      <defs>
+        <mask id={diskMaskId}>
+          <rect x="-100" y="-100" width="200" height="200" fill="white" />
+          <circle r="40" fill="black" />
+        </mask>
+        <mask id={sphereMaskId}>
+          <rect x="-100" y="-100" width="200" height="200" fill="white" />
+          <circle r="22" fill="black" />
+        </mask>
+      </defs>
       <g transform="translate(64 64) rotate(-32)">
         {/* Tilted Accretion Disk - Faithful to the Interstellar-style logo */}
         <path 
           d="M-75 14C-100 -5 -40 -50 40 -38C110 -26 140 10 75 25C10 40 -45 32 -75 14ZM-46 0C-46 10 46 10 46 0C46 -10 -46 -10 -46 0Z" 
           fill="currentColor"
           fillRule="evenodd"
+          mask={`url(#${diskMaskId})`}
         />
-        {/* The Event Horizon shadow/gap */}
-        <circle r="40" fill="black" className="dark:fill-[#0d0d0f]" />
         {/* The central sphere */}
-        <circle r="34" fill="currentColor" />
-        {/* The singularity / inner hole */}
-        <circle r="22" fill="black" className="dark:fill-[#0d0d0f]" />
+        <circle r="34" fill="currentColor" mask={`url(#${sphereMaskId})`} />
       </g>
     </svg>
   );

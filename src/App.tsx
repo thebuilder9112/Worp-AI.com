@@ -84,6 +84,7 @@ import { CommandPalette } from './components/CommandPalette';
 
 import darkLogo from './logo.png';
 import lightLogo from './logo.png';
+import logo3 from './logo3.jpg';
 
 import { 
   Dialog,
@@ -299,6 +300,25 @@ function AppContent() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Synchronize Tab Logo / Favicon dynamically based on Theme Mode (Light / Dark)
+  useEffect(() => {
+    const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    const shortcutIconElement = document.querySelector('link[rel="shortcut icon"]') as HTMLLinkElement;
+    const appleIconElement = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+
+    const activeLogo = isDarkMode ? logo3 : '/favicon.ico';
+
+    if (faviconElement) {
+      faviconElement.href = activeLogo;
+    }
+    if (shortcutIconElement) {
+      shortcutIconElement.href = activeLogo;
+    }
+    if (appleIconElement) {
+      appleIconElement.href = activeLogo;
+    }
+  }, [isDarkMode]);
 
   const startNewSession = async (initialCommand?: string) => {
     if (!user) {
@@ -552,8 +572,8 @@ function AppContent() {
                 <Logo 
                   className="w-10 h-10 rounded-xl" 
                   isDarkMode={isDarkMode} 
-                  imageSrc={isDarkMode ? darkLogo : lightLogo}
-                  isSprite={false} 
+                  imageSrc="/favicon.ico"
+                  darkImageSrc={logo3}
                 />
                 <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
