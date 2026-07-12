@@ -50,7 +50,7 @@ async function startServer() {
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
       
       if (isPlaceholder) {
-        apiKey = "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw";
+        throw new Error("GEMINI_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
       }
 
       const genAI = new GoogleGenAI({ apiKey });
@@ -93,7 +93,7 @@ async function startServer() {
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
       
       if (isPlaceholder) {
-        apiKey = "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw";
+        throw new Error("GEMINI_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
       }
 
       const genAI = new GoogleGenAI({ apiKey });
