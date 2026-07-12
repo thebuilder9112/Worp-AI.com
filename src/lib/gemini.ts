@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Default fallback API Key if server connection is unavailable or for static exports
-const DEFAULT_GEMINI_API_KEY = "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw";
+const DEFAULT_GEMINI_API_KEY = "";
 
 export async function* streamChat(
   message: string, 
@@ -57,7 +57,9 @@ export async function* streamChat(
 
   eventSource.onerror = () => {
     // If server stream disconnects or fails, trigger client-side fallback seamlessly
-    error = "__FALLBACK__";
+    if (!error) {
+      error = "__FALLBACK__";
+    }
     eventSource.close();
   };
 
@@ -88,6 +90,9 @@ async function* streamDirectClient(
   apiKey: string,
   attachedFile?: { name: string, type: string, data: string } | null
 ) {
+  if (!apiKey || apiKey === "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw") {
+    throw new Error("GEMINI_API_KEY is missing, invalid, or leaked. Please configure your custom API Key in the Settings menu (Secrets panel) of AI Studio.");
+  }
   const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3.5-flash";
 

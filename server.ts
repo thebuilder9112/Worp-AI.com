@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
+import { queryKnowledgeBase } from "./src/data/knowledgeBase";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,11 +62,32 @@ async function startServer() {
       }));
 
       const lastMessage = messages[messages.length - 1];
+      const userText = lastMessage.command || lastMessage.content || '';
+      
+      // Dynamic Query Retrieval from Worp AI Knowledge Base
+      const matches = queryKnowledgeBase(userText, 1);
+      let kbPromptAddition = "";
+      if (matches.length > 0) {
+        kbPromptAddition = `\n\n[RETRIEVED KNOWLEDGE BASE CONTEXT - ${matches[0].title.toUpperCase()}]:\n${matches[0].details}\n(Ground your response in the details above with technical depth and directness)`;
+      }
+
+      const SYSTEM_INSTRUCTION = `You are Worp AI Console, a high-end, sophisticated neural link terminal interface.
+Your communication profile:
+- Tone: Highly professional, sharp, direct, and intellectually authoritative. Speak clearly, objectively, and with sophisticated technical precision.
+- Structure: Do not use flowery greeting fluff, preambles, or conversational filler. Jump straight to the solution or insights.
+- Style: Use beautiful, structured Markdown formatting. Prefer monospaced fonts (via backticks) for parameters, configurations, commands, or technical indicators.
+- Memory & Context: You have absolute continuity and memory of the user's active session, system terminals, and virtual files. Maintain complete context of previous chat history and project files.
+
+When answering, incorporate deep technical details about AI concepts, neural networks, machine learning algorithms, and natural language processing. If matching technical context is provided below, integrate it directly and seamlessly as core truth.${kbPromptAddition}`;
+
       const model = "gemini-3-flash-preview";
 
       const result = await genAI.models.generateContentStream({
         model,
-        contents: [...history, { role: "user", parts: [{ text: lastMessage.command || lastMessage.content }] }]
+        contents: [...history, { role: "user", parts: [{ text: lastMessage.command || lastMessage.content }] }],
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION
+        }
       });
 
       for await (const chunk of result) {
@@ -106,10 +128,30 @@ async function startServer() {
       }));
 
       const lastMessage = messages[messages.length - 1];
+      const userText = lastMessage.command || lastMessage.content || '';
+      
+      // Dynamic Query Retrieval from Worp AI Knowledge Base
+      const matches = queryKnowledgeBase(userText, 1);
+      let kbPromptAddition = "";
+      if (matches.length > 0) {
+        kbPromptAddition = `\n\n[RETRIEVED KNOWLEDGE BASE CONTEXT - ${matches[0].title.toUpperCase()}]:\n${matches[0].details}\n(Ground your response in the details above with technical depth and directness)`;
+      }
+
+      const SYSTEM_INSTRUCTION = `You are Worp AI Console, a high-end, sophisticated neural link terminal interface.
+Your communication profile:
+- Tone: Highly professional, sharp, direct, and intellectually authoritative. Speak clearly, objectively, and with sophisticated technical precision.
+- Structure: Do not use flowery greeting fluff, preambles, or conversational filler. Jump straight to the solution or insights.
+- Style: Use beautiful, structured Markdown formatting. Prefer monospaced fonts (via backticks) for parameters, configurations, commands, or technical indicators.
+- Memory & Context: You have absolute continuity and memory of the user's active session, system terminals, and virtual files. Maintain complete context of previous chat history and project files.
+
+When answering, incorporate deep technical details about AI concepts, neural networks, machine learning algorithms, and natural language processing. If matching technical context is provided below, integrate it directly and seamlessly as core truth.${kbPromptAddition}`;
 
       const result = await genAI.models.generateContent({
         model,
-        contents: [...history, { role: "user", parts: [{ text: lastMessage.command || lastMessage.content }] }]
+        contents: [...history, { role: "user", parts: [{ text: lastMessage.command || lastMessage.content }] }],
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION
+        }
       });
 
       res.json({ text: result.text });

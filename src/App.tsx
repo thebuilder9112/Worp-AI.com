@@ -81,6 +81,7 @@ import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext
 import { Logo } from './components/Logo';
 import { TerminalEffects } from './components/TerminalEffects';
 import { CommandPalette } from './components/CommandPalette';
+import { KnowledgeBaseExplorer } from './components/KnowledgeBaseExplorer';
 
 import darkLogo from './logo.png';
 import lightLogo from './logo.png';
@@ -135,7 +136,7 @@ function AppContent() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [crtEnabled, setCrtEnabled] = useState(true);
-  const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'project' | 'knowledge'>('chats');
   const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
 
@@ -582,24 +583,34 @@ function AppContent() {
 
               <div className="flex bg-zinc-900/50 p-1 rounded-lg gap-1 border border-zinc-800/50 mx-2">
                 <button 
+                  id="tab-terminal-btn"
                   onClick={() => setActiveTab('chats')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'chats' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'chats' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   <MessageSquare className="w-3 h-3" />
                   Terminal
                 </button>
                 <button 
+                  id="tab-project-btn"
                   onClick={() => setActiveTab('project')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'project' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'project' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   <FileCode className="w-3 h-3" />
                   Project
+                </button>
+                <button 
+                  id="tab-knowledge-btn"
+                  onClick={() => setActiveTab('knowledge')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'knowledge' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <BookOpen className="w-3 h-3" />
+                  Knowledge
                 </button>
               </div>
             </SidebarHeader>
 
             <SidebarContent className="px-2">
-              {activeTab === 'chats' ? (
+              {activeTab === 'chats' && (
                 <>
                   <SidebarGroup>
                 <SidebarMenu>
@@ -679,7 +690,9 @@ function AppContent() {
                 </ScrollArea>
               </SidebarGroup>
               </>
-              ) : (
+              )}
+
+              {activeTab === 'project' && (
                 <div className="p-4 space-y-6">
                    <div className="space-y-4">
                      <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
@@ -717,6 +730,18 @@ function AppContent() {
                         Synaptic extraction protocol automatically captures code blocks from your conversation and populates this terminal project.
                       </p>
                    </div>
+                </div>
+              )}
+
+              {activeTab === 'knowledge' && (
+                <div className="py-3 h-[calc(100vh-170px)] flex flex-col overflow-hidden">
+                  <div className="px-2 pb-2 flex items-center gap-2 border-b border-zinc-900/40">
+                    <BookOpen className="w-4 h-4 text-theme-accent animate-pulse" />
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono">Linked AI Knowledge</span>
+                  </div>
+                  <div className="flex-1 overflow-hidden mt-2">
+                    <KnowledgeBaseExplorer onInsertReference={(ref) => setInput(prev => prev + (prev ? ' ' : '') + `@${ref}`)} />
+                  </div>
                 </div>
               )}
               
