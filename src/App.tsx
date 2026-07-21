@@ -575,8 +575,7 @@ function AppContent() {
                 <Logo 
                   className="w-10 h-10 rounded-xl text-theme-accent" 
                   isDarkMode={isDarkMode} 
-                  imageSrc="/favicon.ico"
-                  lightImageSrc="/favicon.ico"
+                  imageSrc="/logo.png"
                   darkImageSrc="/logo3.jpg"
                 />
                 <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
@@ -940,7 +939,7 @@ function AppContent() {
           </Sidebar>
 
           {/* Main Area */}
-          <main className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDarkMode ? 'metallic-bg' : 'bg-white text-zinc-900 border-l border-zinc-200'}`}>
+          <main className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDarkMode ? '' : 'bg-white text-zinc-900 border-l border-zinc-200'}`}>
             {/* Background patterns */}
             <AnimatePresence mode="wait">
               <motion.div 
@@ -1116,7 +1115,7 @@ function AppContent() {
                                 timestamp={m.timestamp}
                                 isStreaming={m.isStreaming}
                                 userName={profile?.displayName}
-                                lightLogo="/favicon.ico"
+                                lightLogo="/logo.png"
                                 darkLogo="/logo3.jpg"
                               />
                               <div className="flex items-center gap-4 mt-4 px-12 opacity-0 group-hover:opacity-100 transition-opacity">

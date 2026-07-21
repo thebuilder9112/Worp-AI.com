@@ -23,10 +23,6 @@ export const Logo = ({
   const diskMaskId = useId();
   const sphereMaskId = useId();
 
-  React.useEffect(() => {
-    setImgError(false);
-  }, [finalSrc]);
-
   if (finalSrc && !imgError) {
     if (isSprite) {
       return (
