@@ -200,3 +200,79 @@
     @apply font-sans;
     }
 }
+
+/* Warp Drive & Holographic UI Additions */
+@keyframes warp-pulse {
+  0%, 100% {
+    text-shadow: 0 0 8px rgba(var(--accent-color), 0.3), 0 0 15px rgba(var(--accent-color), 0.1);
+    box-shadow: 0 0 15px rgba(var(--accent-color), 0.1), inset 0 0 15px rgba(var(--accent-color), 0.05);
+  }
+  50% {
+    text-shadow: 0 0 15px rgba(var(--accent-color), 0.6), 0 0 25px rgba(var(--accent-color), 0.2);
+    box-shadow: 0 0 25px rgba(var(--accent-color), 0.2), inset 0 0 25px rgba(var(--accent-color), 0.1);
+  }
+}
+
+@keyframes energy-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes holographic-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.holo-card {
+  background: linear-gradient(135deg, rgba(20, 24, 33, 0.75) 0%, rgba(10, 12, 16, 0.9) 100%);
+  border: 1px solid rgba(var(--accent-color), 0.25);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 
+              0 0 20px rgba(var(--accent-color), 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.holo-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, rgba(var(--accent-color), 0.02) 50%, transparent);
+  pointer-events: none;
+  animation: holographic-scan 6s linear infinite;
+}
+
+.metallic-bg {
+  background: radial-gradient(circle at 50% 50%, #171a22 0%, #080a0d 100%);
+}
+
+.energy-border {
+  position: relative;
+}
+
+.energy-border::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(90deg, 
+    rgba(var(--accent-color), 0.2), 
+    rgba(var(--accent-color), 1), 
+    rgba(var(--accent-color), 0.2)
+  );
+  background-size: 200% auto;
+  animation: energy-flow 3s linear infinite;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.75;
+}

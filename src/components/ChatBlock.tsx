@@ -13,6 +13,7 @@ import { jsPDF } from 'jspdf';
 import { useTheme } from '../lib/ThemeContext';
 import { CodeRunner } from './CodeRunner';
 import { LivePreview } from './LivePreview';
+import { Logo } from './Logo';
 
 interface ChatBlockProps {
   id: string;
@@ -107,11 +108,11 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
         {/* AI Bubble */}
         <div className="flex gap-4">
            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border overflow-hidden ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
-              {finalLogo ? (
-                <img src={finalLogo} alt="AI" className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-theme-accent">{modeIcons[chatMode]}</div>
-              )}
+              <Logo 
+                className="w-full h-full text-theme-accent p-1" 
+                isDarkMode={isDarkMode}
+                imageSrc={finalLogo}
+              />
            </div>
            <div className="flex-1 space-y-2">
               <div className={`p-6 rounded-3xl rounded-tl-none shadow-2xl relative overflow-hidden group border ${isDarkMode ? 'bg-[#0f0f12] border-zinc-800' : 'bg-white border-zinc-200 text-zinc-700'}`}>

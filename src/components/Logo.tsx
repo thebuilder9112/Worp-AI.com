@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useId, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export const Logo = ({ 
@@ -18,11 +18,16 @@ export const Logo = ({
   isSprite?: boolean;
   spriteDirection?: 'vertical' | 'horizontal';
 }) => {
+  const [imgError, setImgError] = useState(false);
   const finalSrc = isDarkMode ? (darkImageSrc || imageSrc) : (lightImageSrc || imageSrc);
   const diskMaskId = useId();
   const sphereMaskId = useId();
 
-  if (finalSrc) {
+  React.useEffect(() => {
+    setImgError(false);
+  }, [finalSrc]);
+
+  if (finalSrc && !imgError) {
     if (isSprite) {
       return (
         <div className={cn("overflow-hidden relative", className)}>
@@ -38,6 +43,7 @@ export const Logo = ({
               top: spriteDirection === 'vertical' ? (isDarkMode ? '-100%' : '0') : '0',
               left: spriteDirection === 'horizontal' ? (isDarkMode ? '-100%' : '0') : '0'
             }}
+            onError={() => setImgError(true)}
             referrerPolicy="no-referrer"
           />
         </div>
@@ -48,6 +54,7 @@ export const Logo = ({
         src={finalSrc} 
         alt="Logo"   
         className={cn("object-cover rounded-md shadow-sm", className)}
+        onError={() => setImgError(true)}
         referrerPolicy="no-referrer"
       />
     );

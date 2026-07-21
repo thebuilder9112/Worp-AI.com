@@ -82,6 +82,7 @@ import { Logo } from './components/Logo';
 import { TerminalEffects } from './components/TerminalEffects';
 import { CommandPalette } from './components/CommandPalette';
 import { KnowledgeBaseExplorer } from './components/KnowledgeBaseExplorer';
+import { ProactiveCopilot } from './components/ProactiveCopilot';
 
 import darkLogo from './logo.png';
 import lightLogo from './logo.png';
@@ -136,7 +137,8 @@ function AppContent() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [crtEnabled, setCrtEnabled] = useState(true);
-  const [activeTab, setActiveTab] = useState<'chats' | 'project' | 'knowledge'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'project' | 'knowledge' | 'copilot'>('chats');
+  const [isCopilotPaneOpen, setIsCopilotPaneOpen] = useState(true);
   const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
 
@@ -571,40 +573,53 @@ function AppContent() {
             <SidebarHeader className="flex flex-col p-2 gap-2 h-auto">
               <div className="flex items-center gap-3 px-2 py-1">
                 <Logo 
-                  className="w-10 h-10 rounded-xl" 
+                  className="w-10 h-10 rounded-xl text-theme-accent" 
                   isDarkMode={isDarkMode} 
                   imageSrc="/favicon.ico"
-                  darkImageSrc={logo3}
+                  lightImageSrc="/favicon.ico"
+                  darkImageSrc="/logo3.jpg"
                 />
                 <span className={`font-bold text-xl tracking-tight transition-all bg-clip-text text-transparent animate-shine ${isDarkMode ? 'bg-gradient-to-r from-zinc-400 via-white to-zinc-400' : 'bg-gradient-to-r from-zinc-700 via-zinc-900 to-zinc-700'} bg-[length:200%_auto] ${friendlyMode ? 'tracking-normal' : ''}`}>
                   Worp AI
                 </span>
               </div>
 
-              <div className="flex bg-zinc-900/50 p-1 rounded-lg gap-1 border border-zinc-800/50 mx-2">
+              <div className="grid grid-cols-4 bg-zinc-900/50 p-1 rounded-lg gap-1 border border-zinc-800/50 mx-2">
                 <button 
                   id="tab-terminal-btn"
                   onClick={() => setActiveTab('chats')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'chats' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all ${activeTab === 'chats' ? 'bg-theme-accent text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Terminal"
                 >
-                  <MessageSquare className="w-3 h-3" />
-                  Terminal
+                  <MessageSquare className="w-3 h-3 shrink-0" />
+                  <span className="hidden min-[380px]:inline">Term</span>
                 </button>
                 <button 
                   id="tab-project-btn"
                   onClick={() => setActiveTab('project')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'project' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all ${activeTab === 'project' ? 'bg-theme-accent text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Project Workspace"
                 >
-                  <FileCode className="w-3 h-3" />
-                  Project
+                  <FileCode className="w-3 h-3 shrink-0" />
+                  <span className="hidden min-[380px]:inline">Proj</span>
                 </button>
                 <button 
                   id="tab-knowledge-btn"
                   onClick={() => setActiveTab('knowledge')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${activeTab === 'knowledge' ? 'bg-theme-accent text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all ${activeTab === 'knowledge' ? 'bg-theme-accent text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Knowledge Base"
                 >
-                  <BookOpen className="w-3 h-3" />
-                  Knowledge
+                  <BookOpen className="w-3 h-3 shrink-0" />
+                  <span className="hidden min-[380px]:inline">Know</span>
+                </button>
+                <button 
+                  id="tab-copilot-btn"
+                  onClick={() => setActiveTab('copilot')}
+                  className={`flex items-center justify-center gap-1 py-1.5 rounded-md text-[8.5px] font-bold uppercase tracking-wider transition-all ${activeTab === 'copilot' ? 'bg-theme-accent text-white shadow-sm animate-pulse' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Proactive Co-Pilot"
+                >
+                  <Cpu className="w-3 h-3 shrink-0" />
+                  <span className="hidden min-[380px]:inline">Pilot</span>
                 </button>
               </div>
             </SidebarHeader>
@@ -741,6 +756,24 @@ function AppContent() {
                   </div>
                   <div className="flex-1 overflow-hidden mt-2">
                     <KnowledgeBaseExplorer onInsertReference={(ref) => setInput(prev => prev + (prev ? ' ' : '') + `@${ref}`)} />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'copilot' && (
+                <div className="py-3 h-[calc(100vh-170px)] flex flex-col overflow-hidden">
+                  <div className="px-3 pb-2 flex items-center gap-2 border-b border-zinc-900/40">
+                    <Cpu className="w-4 h-4 text-theme-accent animate-pulse" />
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono">Autonomous Co-Pilot</span>
+                  </div>
+                  <div className="flex-1 overflow-hidden mt-2">
+                    <ProactiveCopilot 
+                      messages={messages}
+                      input={input}
+                      setInput={setInput}
+                      onSendCommand={handleSendCommand}
+                      isDarkMode={isDarkMode}
+                    />
                   </div>
                 </div>
               )}
@@ -907,7 +940,7 @@ function AppContent() {
           </Sidebar>
 
           {/* Main Area */}
-          <main className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDarkMode ? '' : 'bg-white text-zinc-900 border-l border-zinc-200'}`}>
+          <main className={`flex-1 flex flex-col min-w-0 relative overflow-hidden ${isDarkMode ? 'metallic-bg' : 'bg-white text-zinc-900 border-l border-zinc-200'}`}>
             {/* Background patterns */}
             <AnimatePresence mode="wait">
               <motion.div 
@@ -955,6 +988,21 @@ function AppContent() {
                     Share
                   </button>
                 )}
+
+                <button 
+                  onClick={() => setIsCopilotPaneOpen(!isCopilotPaneOpen)}
+                  className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-[11px] font-bold uppercase tracking-widest border transition-all ${
+                    isCopilotPaneOpen 
+                      ? 'bg-theme-accent/10 text-theme-accent border-theme-accent/30 shadow-[0_0_12px_rgba(var(--accent-color),0.15)] hover:bg-theme-accent/20' 
+                      : isDarkMode 
+                        ? 'text-zinc-500 hover:text-zinc-300 border-zinc-900 bg-transparent' 
+                        : 'text-zinc-500 hover:text-zinc-700 border-zinc-200 bg-transparent'
+                  }`}
+                  title="Toggle Co-Pilot Sidepanel"
+                >
+                  <Cpu className={`w-3.5 h-3.5 ${isCopilotPaneOpen ? 'animate-pulse text-theme-accent' : ''}`} />
+                  Co-Pilot
+                </button>
                 
                 <Dialog>
                   <DialogTrigger render={
@@ -1068,8 +1116,8 @@ function AppContent() {
                                 timestamp={m.timestamp}
                                 isStreaming={m.isStreaming}
                                 userName={profile?.displayName}
-                                lightLogo={lightLogo}
-                                darkLogo={darkLogo}
+                                lightLogo="/favicon.ico"
+                                darkLogo="/logo3.jpg"
                               />
                               <div className="flex items-center gap-4 mt-4 px-12 opacity-0 group-hover:opacity-100 transition-opacity">
                                  {/* Minimalist actions can go here if needed, but keeping it clean for now */}
@@ -1186,6 +1234,18 @@ function AppContent() {
               </div>
             </div>
           </main>
+
+          {isCopilotPaneOpen && (
+            <div className={`hidden lg:block w-80 xl:w-96 shrink-0 h-full relative z-20 border-l transition-colors duration-500 ${isDarkMode ? 'border-zinc-900' : 'border-zinc-200 bg-zinc-50'}`}>
+              <ProactiveCopilot 
+                messages={messages}
+                input={input}
+                setInput={setInput}
+                onSendCommand={handleSendCommand}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+          )}
         </div>
       </SidebarProvider>
 
