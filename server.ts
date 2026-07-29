@@ -5,8 +5,19 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import { queryKnowledgeBase } from "./src/data/knowledgeBase";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const serverDir = (() => {
+  if (typeof __dirname !== "undefined") {
+    return __dirname;
+  }
+  if (typeof import.meta !== "undefined" && import.meta?.url) {
+    try {
+      return path.dirname(fileURLToPath(import.meta.url));
+    } catch {
+      // ignore
+    }
+  }
+  return process.cwd();
+})();
 
 async function startServer() {
   const app = express();
@@ -24,10 +35,10 @@ async function startServer() {
   });
 
   app.get("/api/debug-paths", (req, res) => {
-    const distPath = path.resolve(__dirname, "dist");
+    const distPath = path.resolve(serverDir, "dist");
     res.json({
       cwd: process.cwd(),
-      dirname: __dirname,
+      serverDir,
       distPath,
       distExists: fs.existsSync(distPath),
       nodeEnv: process.env.NODE_ENV
@@ -47,11 +58,11 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 
-      let apiKey = process.env.GEMINI_API_KEY;
+      let apiKey = process.env.VITE_API_KEY || process.env.GEMINI_API_KEY;
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
       
       if (isPlaceholder) {
-        throw new Error("GEMINI_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
+        throw new Error("VITE_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
       }
 
       const genAI = new GoogleGenAI({ apiKey });
@@ -113,11 +124,11 @@ When responding, incorporate deep technical details about neural networks, trans
     try {
       const { messages } = req.body;
       
-      let apiKey = process.env.GEMINI_API_KEY;
+      let apiKey = process.env.VITE_API_KEY || process.env.GEMINI_API_KEY;
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
       
       if (isPlaceholder) {
-        throw new Error("GEMINI_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
+        throw new Error("VITE_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
       }
 
       const genAI = new GoogleGenAI({ apiKey });
@@ -179,7 +190,7 @@ When responding, incorporate deep technical details about neural networks, trans
     app.use(vite.middlewares);
   } else {
     // Determine the dist path relative to this file
-    const distPath = path.resolve(__dirname, "dist");
+    const distPath = path.resolve(serverDir, "dist");
     const rootDist = path.resolve(process.cwd(), "dist");
     
     // Choose the best candidate for dist
