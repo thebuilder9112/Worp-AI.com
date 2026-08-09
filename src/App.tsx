@@ -138,6 +138,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
   const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -271,29 +272,213 @@ function AppContent() {
     }
   };
 
+  const processFile = (file: File) => {
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawDataUrl = event.target?.result as string;
+        if (!rawDataUrl) return;
+
+        const img = new window.Image();
+        img.onload = () => {
+          try {
+            const maxDim = 1600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              const outputMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+              const optimizedDataUrl = canvas.toDataURL(outputMime, 0.85);
+              const pureBase64 = optimizedDataUrl.split(',')[1] || optimizedDataUrl;
+              
+              const fileName = file.name && file.name !== 'image.png' && file.name !== 'blob'
+                ? file.name
+                : `pasted_image_${Date.now()}.${outputMime.split('/')[1] || 'jpg'}`;
+
+              setAttachedFile({
+                name: fileName,
+                type: outputMime,
+                data: pureBase64
+              });
+              toast.success(`Image attached: ${fileName}`);
+              return;
+            }
+          } catch (canvasErr) {
+            console.warn("Canvas optimization fallback:", canvasErr);
+          }
+
+          // Fallback if canvas conversion fails
+          const pureBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
+          const mimeType = file.type || 'image/jpeg';
+          const fileName = file.name || `image_${Date.now()}.jpg`;
+          setAttachedFile({
+            name: fileName,
+            type: mimeType,
+            data: pureBase64
+          });
+          toast.success(`Image attached: ${fileName}`);
+        };
+
+        img.onerror = () => {
+          const pureBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
+          setAttachedFile({
+            name: file.name || `image_${Date.now()}.jpg`,
+            type: file.type || 'image/jpeg',
+            data: pureBase64
+          });
+          toast.success(`Image attached: ${file.name || 'image'}`);
+        };
+
+        img.src = rawDataUrl;
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // For non-image files
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64Data = event.target?.result as string;
+      if (!base64Data) return;
+      const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+      setAttachedFile({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        data: pureBase64
+      });
+      toast.success(`Attached file: ${file.name}`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Data = event.target?.result as string;
-        const dataPrefix = base64Data.split(',')[0];
-        const mimeType = dataPrefix.match(/:(.*?);/)?.[1] || file.type;
-        const pureBase64 = base64Data.split(',')[1];
+      processFile(file);
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
 
-        setAttachedFile({
-          name: file.name,
-          type: mimeType,
-          data: pureBase64
-        });
-        toast.success(`Synaptic Link established: ${file.name}`);
-      };
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
+    let fileFound = false;
 
-      if (file.type.startsWith('image/')) {
-        reader.readAsDataURL(file);
-      } else {
-        reader.readAsText(file);
+    // Check direct clipboard files
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file) {
+          processFile(file);
+          fileFound = true;
+          break;
+        }
       }
+    }
+
+    // Check clipboard items for image/file data
+    if (!fileFound && items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            processFile(file);
+            fileFound = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (fileFound) {
+      const text = e.clipboardData.getData('text/plain');
+      // If only an image was in clipboard, prevent pasting raw junk
+      if (!text || text.trim() === '') {
+        e.preventDefault();
+      }
+    }
+  };
+
+  // Global paste handler so user can press Ctrl+V anywhere in the application
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      // If focused inside a different search or rename modal input, skip
+      if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id !== 'chat-user-input') {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      const files = e.clipboardData?.files;
+      let fileFound = false;
+
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          if (files[i]) {
+            processFile(files[i]);
+            fileFound = true;
+            break;
+          }
+        }
+      }
+
+      if (!fileFound && items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+              processFile(file);
+              fileFound = true;
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, []);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      processFile(files[0]);
     }
   };
 
@@ -346,15 +531,25 @@ function AppContent() {
 
   const handleSendCommand = async (command: string, sessionId: string | null = currentSessionId) => {
     if (isProcessing) return;
+    
+    const trimmedCommand = (command || '').trim();
+    if (!trimmedCommand && !attachedFile) {
+      return;
+    }
+
+    const effectiveCommand = trimmedCommand || (attachedFile?.type?.startsWith('image/') 
+      ? "Please analyze and explain this attached image." 
+      : "Please analyze this attached file.");
+
     if (!sessionId && user) {
-       await startNewSession(command);
+       await startNewSession(effectiveCommand);
        return;
     }
 
     const newMessageId = Math.random().toString(36).substring(7);
     const userMessage: Message = {
       id: newMessageId,
-      command,
+      command: effectiveCommand,
       response: '',
       timestamp: new Date(),
       isStreaming: true,
@@ -363,13 +558,15 @@ function AppContent() {
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
     setInput('');
+    const currentAttachment = attachedFile;
+    setAttachedFile(null); // Clear synaptic link after dispatch
 
     try {
       // Save User Message to Firestore
       if (user && sessionId) {
         await addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
           role: 'user',
-          text: command,
+          text: effectiveCommand,
           timestamp: serverTimestamp()
         });
       }
@@ -380,8 +577,7 @@ function AppContent() {
       ]).flat();
 
       let fullResponse = '';
-      const stream = streamChat(command, history, chatMode, attachedFile);
-      setAttachedFile(null); // Clear synaptic link after dispatch
+      const stream = streamChat(effectiveCommand, history, chatMode, currentAttachment);
 
       for await (const delta of stream) {
         fullResponse += delta;
@@ -1100,17 +1296,55 @@ function AppContent() {
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`rounded-xl p-1 border transition-all shadow-2xl relative backdrop-blur-xl ${isDarkMode ? 'bg-[#0f0f11]/80 border-zinc-800/50 focus-within:border-zinc-700' : 'bg-white/80 border-zinc-200 focus-within:border-zinc-300'}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onPaste={handlePaste}
+                  className={`rounded-xl p-1 border transition-all shadow-2xl relative backdrop-blur-xl ${
+                    isDraggingOver 
+                      ? 'border-theme-accent ring-2 ring-theme-accent/40 bg-theme-accent/5' 
+                      : isDarkMode 
+                        ? 'bg-[#0f0f11]/80 border-zinc-800/50 focus-within:border-zinc-700' 
+                        : 'bg-white/80 border-zinc-200 focus-within:border-zinc-300'
+                  }`}
                 >
-                  {attachedFile && (
-                    <div className="px-4 py-2 flex items-center justify-between border-b border-zinc-800/50">
+                  {isDraggingOver && (
+                    <div className="absolute inset-0 z-30 rounded-xl bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-theme-accent text-theme-accent font-mono text-xs font-bold uppercase tracking-wider animate-pulse pointer-events-none">
                       <div className="flex items-center gap-2">
-                        {attachedFile.type.startsWith('image/') ? <Image className="w-4 h-4 text-theme-accent" /> : <FileText className="w-4 h-4 text-theme-accent" />}
-                        <span className="text-xs font-mono text-zinc-400 truncate max-w-[200px]">{attachedFile.name}</span>
+                        <Image className="w-5 h-5" />
+                        <span>Drop Image or File to Attach</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {attachedFile && (
+                    <div className="px-3 py-2 flex items-center justify-between border-b border-zinc-800/50 bg-zinc-900/40 rounded-t-lg">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {attachedFile.type.startsWith('image/') ? (
+                          <div className="relative w-8 h-8 rounded-md overflow-hidden border border-zinc-700 shrink-0 bg-black/40 shadow-sm">
+                            <img 
+                              src={`data:${attachedFile.type};base64,${attachedFile.data}`} 
+                              alt={attachedFile.name} 
+                              className="w-full h-full object-cover" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-md bg-theme-accent/10 border border-theme-accent/30 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4 text-theme-accent" />
+                          </div>
+                        )}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-medium text-zinc-300 truncate max-w-[200px] sm:max-w-xs">{attachedFile.name}</span>
+                          <span className="text-[10px] font-mono text-theme-accent uppercase tracking-wider">
+                            {attachedFile.type.startsWith('image/') ? 'Image Attachment' : 'Document Attachment'}
+                          </span>
+                        </div>
                       </div>
                       <button 
+                        id="remove-attachment-btn"
                         onClick={() => setAttachedFile(null)}
-                        className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-red-500 transition-colors"
+                        className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-red-400 transition-colors ml-2 shrink-0"
+                        title="Remove attachment"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1122,16 +1356,19 @@ function AppContent() {
                       <span className="animate-pulse">_</span>
                     </div>
                     <Input 
-                      placeholder="Ask Worp anything..."
+                      id="chat-user-input"
+                      placeholder={attachedFile ? "Ask Worp about this attachment, or type a prompt..." : "Ask Worp anything or paste an image (Ctrl+V)..."}
                       className={`bg-transparent border-none focus-visible:ring-0 text-[15px] py-6 px-1 placeholder:text-zinc-600 font-sans tracking-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-900'}`}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendCommand(input)}
+                      onPaste={handlePaste}
                     />
                     <div className="flex items-center gap-1 pr-2">
                       <button 
+                        id="submit-command-btn"
                         onClick={() => handleSendCommand(input)}
-                        className={`p-2 rounded-xl transition-all ${input.trim() ? 'bg-theme-accent text-zinc-950 shadow-[0_0_15px_var(--accent-glow)] scale-105' : 'bg-zinc-900 text-zinc-700'}`}
+                        className={`p-2 rounded-xl transition-all ${input.trim() || attachedFile ? 'bg-theme-accent text-zinc-950 shadow-[0_0_15px_var(--accent-glow)] scale-105' : 'bg-zinc-900 text-zinc-700'}`}
                       >
                         <SendHorizontal className="w-5 h-5" />
                       </button>
@@ -1147,19 +1384,21 @@ function AppContent() {
                          onChange={handleFileChange}
                        />
                        <button 
+                         id="attach-file-btn"
                          onClick={() => fileInputRef.current?.click()}
-                         className={`p-1 rounded transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-600 hover:text-zinc-400' : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'}`}
-                         title="Attach file"
+                         className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'}`}
+                         title="Attach file or image (or paste Ctrl+V)"
                        >
                          <Plus className="w-4 h-4" />
                        </button>
                        <button 
+                         id="voice-input-btn"
                          onClick={toggleListening}
-                         className={`p-1 rounded transition-all ${
+                         className={`p-1.5 rounded-lg transition-all ${
                            isListening 
                              ? 'bg-red-500/20 text-red-500 animate-pulse' 
                              : isDarkMode 
-                               ? 'hover:bg-zinc-800 text-zinc-600 hover:text-zinc-400' 
+                               ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' 
                                : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'
                          }`}
                          title={isListening ? "Listening..." : "Voice input"}

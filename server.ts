@@ -24,7 +24,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // Diagnostic route for environment checking
   app.get("/api/health", (req, res) => {
@@ -46,15 +47,18 @@ async function startServer() {
     });
   });
 
-  // API Route for Gemini Proxy (Streaming)
-  app.get("/api/chat/stream", async (req, res) => {
+  // Shared stream handler for both POST and GET
+  const handleChatStream = async (req: express.Request, res: express.Response) => {
     try {
-      if (!req.query.data) {
-        throw new Error("Missing query data");
+      let body: any = {};
+      if (req.method === "POST") {
+        body = req.body || {};
+      } else if (req.query.data) {
+        body = JSON.parse(req.query.data as string);
       }
-      
-      const { messages, chatMode, attachedFile } = JSON.parse(req.query.data as string);
-      
+
+      const { messages = [], chatMode = 'standard', attachedFile } = body;
+
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -66,14 +70,25 @@ async function startServer() {
         throw new Error("VITE_API_KEY is missing or invalid. Please configure your custom API Key in the Settings menu of AI Studio.");
       }
 
-      const genAI = new GoogleGenAI({ apiKey });
+      const genAI = new GoogleGenAI({ 
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
       
-      const history = messages.slice(0, -1).map((msg: any) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.response || msg.content || '' }],
-      }));
+      const history = (messages.slice(0, -1) || []).map((msg: any) => {
+        const text = msg.response || msg.content || msg.command || '';
+        const role = (msg.role === 'user' || msg.command) && !msg.response ? 'user' : (msg.role === 'model' || msg.response ? 'model' : 'user');
+        return {
+          role,
+          parts: [{ text }],
+        };
+      }).filter((m: any) => m.parts[0].text.trim().length > 0);
 
-      const lastMessage = messages[messages.length - 1];
+      const lastMessage = messages.length > 0 ? messages[messages.length - 1] : { command: '', content: '' };
       const userText = lastMessage.command || lastMessage.content || '';
       
       // Dynamic Query Retrieval from Worp AI Knowledge Base
@@ -88,20 +103,42 @@ async function startServer() {
         knowledgeBaseContext: kbContext
       });
 
-      const model = "gemini-3-flash-preview";
+      const model = "gemini-3.6-flash";
 
       let userParts: any[] = [];
       if (attachedFile && attachedFile.data) {
-        const mimeType = attachedFile.type || "image/jpeg";
-        const base64Data = attachedFile.data.split(',')[1] || attachedFile.data;
-        userParts.push({
-          inlineData: {
-            mimeType,
-            data: base64Data
-          }
-        });
+        let mimeType = attachedFile.type || "image/jpeg";
+        if (!mimeType.includes('/')) {
+          mimeType = `image/${mimeType}`;
+        }
+        if (mimeType.includes('svg') || mimeType.includes('icon')) {
+          mimeType = 'image/png';
+        }
+
+        let base64Data = attachedFile.data;
+        if (base64Data.includes(',')) {
+          base64Data = base64Data.split(',')[1];
+        }
+        base64Data = base64Data.trim();
+
+        if (base64Data) {
+          userParts.push({
+            inlineData: {
+              mimeType,
+              data: base64Data
+            }
+          });
+        }
       }
-      userParts.push({ text: lastMessage.command || lastMessage.content || '' });
+
+      const finalPromptText = userText || (attachedFile ? "Please inspect and describe this attached image or file." : "");
+      if (finalPromptText) {
+        userParts.push({ text: finalPromptText });
+      }
+
+      if (userParts.length === 0) {
+        userParts.push({ text: "Hello Worp" });
+      }
 
       const result = await genAI.models.generateContentStream({
         model,
@@ -125,7 +162,10 @@ async function startServer() {
       res.write(`data: ${JSON.stringify({ error: error?.message || "Neural link failure" })}\n\n`);
       res.end();
     }
-  });
+  };
+
+  app.post("/api/chat/stream", handleChatStream);
+  app.get("/api/chat/stream", handleChatStream);
 
   // Older non-streaming route for backwards compatibility if needed
   app.post("/api/chat", async (req, res) => {

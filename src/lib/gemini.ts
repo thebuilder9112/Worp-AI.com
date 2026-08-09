@@ -27,64 +27,80 @@ export async function* streamChat(
     }
   }
 
-  // Otherwise, use the standard secure server-side proxy
+  // Use POST with SSE streaming for reliable large multimodal payload delivery
   const messages = [...history, { role: 'user', content: message }];
-  const queryData = encodeURIComponent(JSON.stringify({ messages, mode, chatMode: mode, attachedFile }));
-  const eventSource = new EventSource(`/api/chat/stream?data=${queryData}`);
+  const payload = {
+    messages,
+    mode,
+    chatMode: mode,
+    attachedFile
+  };
 
-  const messageQueue: string[] = [];
-  let isDone = false;
-  let error: string | null = null;
+  try {
+    const response = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-  eventSource.onmessage = (event) => {
-    if (event.data === '[DONE]') {
-      isDone = true;
-      eventSource.close();
-      return;
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Server returned ${response.status}: ${errText}`);
     }
 
+    if (!response.body) {
+      throw new Error("ReadableStream not supported on this response");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data:")) continue;
+
+        const dataStr = trimmed.replace(/^data:\s*/, "");
+        if (dataStr === "[DONE]") {
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (parsed.error) {
+            throw new Error(parsed.error);
+          }
+          if (parsed.text) {
+            yield parsed.text;
+          }
+        } catch (jsonErr: any) {
+          if (jsonErr.message && !jsonErr.message.includes("Unexpected token")) {
+            throw jsonErr;
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn("Server streaming encountered error, attempting direct client fallback:", err);
     try {
-      const data = JSON.parse(event.data);
-      if (data.error) {
-        error = data.error;
-        eventSource.close();
-      } else if (data.text) {
-        messageQueue.push(data.text);
-      }
-    } catch (e) {
-      console.error("Failed to parse SSE data", e);
-    }
-  };
-
-  eventSource.onerror = () => {
-    // If server stream disconnects or fails, trigger client-side fallback seamlessly
-    if (!error) {
-      error = "__FALLBACK__";
-    }
-    eventSource.close();
-  };
-
-  while (!isDone || messageQueue.length > 0) {
-    if (error === "__FALLBACK__") {
-      try {
-        yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
-        return;
-      } catch (err: any) {
-        throw new Error(`Direct connection failed: ${err?.message || err}`);
-      }
-    } else if (error) {
-      throw new Error(error);
-    }
-
-    if (messageQueue.length > 0) {
-      yield messageQueue.shift()!;
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 50));
+      yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
+    } catch (fallbackErr: any) {
+      throw new Error(fallbackErr?.message || err?.message || "Neural link failure");
     }
   }
 }
 
-// Client-side direct stream helper
+// Client-side direct stream helper (for static hosting or emergency fallback)
 async function* streamDirectClient(
   message: string,
   history: { role: 'user' | 'model', parts: { text: string }[] }[],
@@ -92,32 +108,54 @@ async function* streamDirectClient(
   attachedFile?: { name: string, type: string, data: string } | null,
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard'
 ) {
-  if (!apiKey || apiKey === "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw") {
-    throw new Error("VITE_API_KEY is missing, invalid, or leaked. Please configure your custom API Key in the Settings menu (Secrets panel) of AI Studio.");
+  if (!apiKey || apiKey === "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw" || apiKey === "YOUR_API_KEY_HERE") {
+    throw new Error("API Key is missing or invalid. Please configure your custom API Key in the Settings menu (Secrets panel) of AI Studio.");
   }
-  const ai = new GoogleGenAI({ apiKey });
-  const model = "gemini-3.5-flash";
+  const ai = new GoogleGenAI({ 
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
+    }
+  });
+  const model = "gemini-3.6-flash";
 
   const mappedHistory = history.map((msg) => ({
     role: msg.role === 'user' ? 'user' : 'model',
     parts: msg.parts.map(p => ({ text: p.text }))
-  }));
+  })).filter(m => m.parts.some(p => p.text.trim().length > 0));
 
   let contents: any[] = [...mappedHistory];
   let lastParts: any[] = [];
 
   if (attachedFile && attachedFile.data) {
-    const mimeType = attachedFile.type || "image/jpeg";
-    const base64Data = attachedFile.data.split(',')[1] || attachedFile.data;
-    lastParts.push({
-      inlineData: {
-        mimeType,
-        data: base64Data
-      }
-    });
+    let mimeType = attachedFile.type || "image/jpeg";
+    if (!mimeType.includes('/')) {
+      mimeType = `image/${mimeType}`;
+    }
+    if (mimeType.includes('svg') || mimeType.includes('icon')) {
+      mimeType = 'image/png';
+    }
+
+    let base64Data = attachedFile.data;
+    if (base64Data.includes(',')) {
+      base64Data = base64Data.split(',')[1];
+    }
+    base64Data = base64Data.trim();
+
+    if (base64Data) {
+      lastParts.push({
+        inlineData: {
+          mimeType,
+          data: base64Data
+        }
+      });
+    }
   }
 
-  lastParts.push({ text: message });
+  const promptText = message || (attachedFile ? "Please inspect and describe this attached image or file." : "Hello Worp");
+  lastParts.push({ text: promptText });
   contents.push({ role: "user", parts: lastParts });
 
   const systemInstruction = getWorpSystemInstruction({ mode });
