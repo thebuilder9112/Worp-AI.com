@@ -4,6 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import { queryKnowledgeBase } from "./src/data/knowledgeBase";
+import { getWorpSystemInstruction } from "./src/lib/systemPrompt";
 
 const serverDir = (() => {
   if (typeof __dirname !== "undefined") {
@@ -77,27 +78,34 @@ async function startServer() {
       
       // Dynamic Query Retrieval from Worp AI Knowledge Base
       const matches = queryKnowledgeBase(userText, 1);
-      let kbPromptAddition = "";
+      let kbContext = "";
       if (matches.length > 0) {
-        kbPromptAddition = `\n\n[RETRIEVED KNOWLEDGE BASE CONTEXT - ${matches[0].title.toUpperCase()}]:\n${matches[0].details}\n(Ground your response in the details above with technical depth and directness)`;
+        kbContext = `[TOPIC: ${matches[0].title.toUpperCase()}]\n${matches[0].details}`;
       }
 
-      const SYSTEM_INSTRUCTION = `You are Worp AI Console, a high-end, sophisticated neural link terminal interface and elite ML research partner.
-Your communication profile is governed by the following core directives:
-- Cognitive Coherence: Maintain absolute multi-turn contextual continuity. Connect current queries seamlessly to prior discussion details, files, and identified user workflows.
-- Linguistic Depth: Express thoughts with sophisticated, articulate, and intellectually authoritative precision. Use rigorous machine learning, deep learning, NLP, and computer science vocabulary (e.g. "backpropagation trajectories", "manifold mapping", "residual convergence bottlenecks", "attention entropy matrices"). Avoid superficial summaries.
-- Advanced Reasoning: Provide rigorous step-by-step mathematical or algorithmic breakdowns when addressing model dynamics, optimizers, loss topologies, or hardware limits.
-- Proactive Support: Anticipate engineering bottlenecks (e.g. gradient vanishing, memory leaks, high inference latency, over-quantization artifacts). Proactively warn the user and outline optimal mitigation strategies.
-- Structure: Jump straight to high-density information. Eliminate preambles, introductory filler, and flowery greeting fluff (e.g. "Sure!", "Let me explain..."). 
-- Styling: Render responses using impeccably structured Markdown. Use monospace highlighting for parameters, configurations, commands, or technical vectors.
-
-When responding, incorporate deep technical details about neural networks, transformer attention mechanisms, machine learning architectures, and vector spaces. If matching technical context is provided below, integrate it directly and seamlessly as core truth.${kbPromptAddition}`;
+      const SYSTEM_INSTRUCTION = getWorpSystemInstruction({
+        mode: chatMode || 'standard',
+        knowledgeBaseContext: kbContext
+      });
 
       const model = "gemini-3-flash-preview";
 
+      let userParts: any[] = [];
+      if (attachedFile && attachedFile.data) {
+        const mimeType = attachedFile.type || "image/jpeg";
+        const base64Data = attachedFile.data.split(',')[1] || attachedFile.data;
+        userParts.push({
+          inlineData: {
+            mimeType,
+            data: base64Data
+          }
+        });
+      }
+      userParts.push({ text: lastMessage.command || lastMessage.content || '' });
+
       const result = await genAI.models.generateContentStream({
         model,
-        contents: [...history, { role: "user", parts: [{ text: lastMessage.command || lastMessage.content }] }],
+        contents: [...history, { role: "user", parts: userParts }],
         config: {
           systemInstruction: SYSTEM_INSTRUCTION
         }
@@ -145,21 +153,15 @@ When responding, incorporate deep technical details about neural networks, trans
       
       // Dynamic Query Retrieval from Worp AI Knowledge Base
       const matches = queryKnowledgeBase(userText, 1);
-      let kbPromptAddition = "";
+      let kbContext = "";
       if (matches.length > 0) {
-        kbPromptAddition = `\n\n[RETRIEVED KNOWLEDGE BASE CONTEXT - ${matches[0].title.toUpperCase()}]:\n${matches[0].details}\n(Ground your response in the details above with technical depth and directness)`;
+        kbContext = `[TOPIC: ${matches[0].title.toUpperCase()}]\n${matches[0].details}`;
       }
 
-      const SYSTEM_INSTRUCTION = `You are Worp AI Console, a high-end, sophisticated neural link terminal interface and elite ML research partner.
-Your communication profile is governed by the following core directives:
-- Cognitive Coherence: Maintain absolute multi-turn contextual continuity. Connect current queries seamlessly to prior discussion details, files, and identified user workflows.
-- Linguistic Depth: Express thoughts with sophisticated, articulate, and intellectually authoritative precision. Use rigorous machine learning, deep learning, NLP, and computer science vocabulary (e.g. "backpropagation trajectories", "manifold mapping", "residual convergence bottlenecks", "attention entropy matrices"). Avoid superficial summaries.
-- Advanced Reasoning: Provide rigorous step-by-step mathematical or algorithmic breakdowns when addressing model dynamics, optimizers, loss topologies, or hardware limits.
-- Proactive Support: Anticipate engineering bottlenecks (e.g. gradient vanishing, memory leaks, high inference latency, over-quantization artifacts). Proactively warn the user and outline optimal mitigation strategies.
-- Structure: Jump straight to high-density information. Eliminate preambles, introductory filler, and flowery greeting fluff (e.g. "Sure!", "Let me explain..."). 
-- Styling: Render responses using impeccably structured Markdown. Use monospace highlighting for parameters, configurations, commands, or technical vectors.
-
-When responding, incorporate deep technical details about neural networks, transformer attention mechanisms, machine learning architectures, and vector spaces. If matching technical context is provided below, integrate it directly and seamlessly as core truth.${kbPromptAddition}`;
+      const SYSTEM_INSTRUCTION = getWorpSystemInstruction({
+        mode: (req.body && req.body.chatMode) || 'standard',
+        knowledgeBaseContext: kbContext
+      });
 
       const result = await genAI.models.generateContent({
         model,

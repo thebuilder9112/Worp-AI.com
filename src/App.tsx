@@ -978,7 +978,7 @@ function AppContent() {
                         <li><span className="text-theme-accent">/style</span> - Toggle between Terminal and Normal UI.</li>
                       </ul>
                       <Separator className={`bg-zinc-900 ${isDarkMode ? '' : 'bg-zinc-200'}`} />
-                      <p className={`text-xs ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>All data is processed using Gemini 2.0 Flash via the Worp Mesh.</p>
+                      <p className={`text-xs ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Built and architected by <span className="text-zinc-200 font-semibold">Aum Chauhan</span> • Powered by Worp Neural Engine</p>
                     </div>
                   </DialogContent>
                 </Dialog>

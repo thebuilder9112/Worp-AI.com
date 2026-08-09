@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { getWorpSystemInstruction } from "./systemPrompt";
 
 // Default fallback API Key if server connection is unavailable or for static exports
 const DEFAULT_VITE_API_KEY = (import.meta.env && import.meta.env.VITE_API_KEY) || "";
@@ -18,7 +19,7 @@ export async function* streamChat(
   // If on static hosting, directly use client-side streaming
   if (isStaticHosting) {
     try {
-      yield* streamDirectClient(message, history, clientKey, attachedFile);
+      yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
       return;
     } catch (err) {
       console.error("Direct connection failed:", err);
@@ -28,7 +29,7 @@ export async function* streamChat(
 
   // Otherwise, use the standard secure server-side proxy
   const messages = [...history, { role: 'user', content: message }];
-  const queryData = encodeURIComponent(JSON.stringify({ messages, mode, attachedFile }));
+  const queryData = encodeURIComponent(JSON.stringify({ messages, mode, chatMode: mode, attachedFile }));
   const eventSource = new EventSource(`/api/chat/stream?data=${queryData}`);
 
   const messageQueue: string[] = [];
@@ -66,7 +67,7 @@ export async function* streamChat(
   while (!isDone || messageQueue.length > 0) {
     if (error === "__FALLBACK__") {
       try {
-        yield* streamDirectClient(message, history, clientKey, attachedFile);
+        yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
         return;
       } catch (err: any) {
         throw new Error(`Direct connection failed: ${err?.message || err}`);
@@ -88,7 +89,8 @@ async function* streamDirectClient(
   message: string,
   history: { role: 'user' | 'model', parts: { text: string }[] }[],
   apiKey: string,
-  attachedFile?: { name: string, type: string, data: string } | null
+  attachedFile?: { name: string, type: string, data: string } | null,
+  mode: 'standard' | 'code' | 'art' | 'research' = 'standard'
 ) {
   if (!apiKey || apiKey === "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw") {
     throw new Error("VITE_API_KEY is missing, invalid, or leaked. Please configure your custom API Key in the Settings menu (Secrets panel) of AI Studio.");
@@ -118,9 +120,14 @@ async function* streamDirectClient(
   lastParts.push({ text: message });
   contents.push({ role: "user", parts: lastParts });
 
+  const systemInstruction = getWorpSystemInstruction({ mode });
+
   const responseStream = await ai.models.generateContentStream({
     model,
-    contents
+    contents,
+    config: {
+      systemInstruction
+    }
   });
 
   for await (const chunk of responseStream) {
