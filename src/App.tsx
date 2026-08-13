@@ -81,6 +81,7 @@ import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext
 import { Logo } from './components/Logo';
 import { TerminalEffects } from './components/TerminalEffects';
 import { CommandPalette } from './components/CommandPalette';
+import { AuthDialog } from './components/AuthDialog';
 
 import lightLogo from '/favicon.ico';
 import darkLogo from './logo3.jpg';
@@ -133,6 +134,7 @@ function AppContent() {
   const [isListening, setIsListening] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [crtEnabled, setCrtEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
@@ -224,6 +226,10 @@ function AppContent() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
@@ -680,6 +686,13 @@ function AppContent() {
     { id: 'mode-code', label: 'Code Mode', icon: <Code className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('code') },
     { id: 'mode-art', label: 'Art Mode', icon: <Sparkles className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('art') },
     { id: 'mode-research', label: 'Research Mode', icon: <Brain className="w-4 h-4" />, category: 'AI Intelligence', action: () => setChatMode('research') },
+    { 
+      id: 'auth-modal', 
+      label: user ? 'Operative Profile / Switch Account' : 'Sign in / Authenticate (Email & Google)', 
+      icon: <LogIn className="w-4 h-4" />, 
+      category: 'Account', 
+      action: () => setIsAuthDialogOpen(true) 
+    },
   ];
 
   const handleShare = async () => {
@@ -708,8 +721,9 @@ function AppContent() {
     try {
       await signInWithGoogle();
       toast.success("Welcome to Worp AI Console");
-    } catch (error) {
-      toast.error("Failed to sign in");
+    } catch (error: any) {
+      console.warn("Google popup interrupted or blocked, opening Auth Dialog", error);
+      setIsAuthDialogOpen(true);
     }
   };
 
@@ -945,7 +959,7 @@ function AppContent() {
 
             <SidebarFooter className={`border-t p-2 transition-colors duration-500 ${friendlyMode ? 'border-zinc-800' : 'border-zinc-900'}`}>
               {user ? (
-                <div className="flex items-center gap-3 p-3 mb-2 rounded-xl border border-zinc-900 group hover:bg-zinc-900/40 transition-all cursor-default">
+                <div className="flex items-center gap-3 p-3 mb-2 rounded-xl border border-zinc-900 group hover:bg-zinc-900/40 transition-all cursor-pointer" onClick={() => setIsAuthDialogOpen(true)}>
                   {user.photoURL ? (
                     <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-zinc-800 shadow-sm" referrerPolicy="no-referrer" />
                   ) : (
@@ -954,10 +968,18 @@ function AppContent() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-zinc-200 truncate">{user.email ? user.email.split('@')[0] : (user.displayName || 'User')}</p>
-                    <p className="text-[10px] text-zinc-500 truncate">{user.email}</p>
+                    <p className="text-xs font-bold text-zinc-200 truncate">
+                      {user.isAnonymous ? 'Guest Operative' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Operative'))}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 truncate">
+                      {user.isAnonymous ? 'Ephemeral Sync' : (user.email || 'Synced to Mesh')}
+                    </p>
                   </div>
-                  <button onClick={() => logout()} className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); logout(); toast.info("Disconnected from session"); }} 
+                    className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                    title="Log Out"
+                  >
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1185,7 +1207,7 @@ function AppContent() {
             <div className="flex-1 relative overflow-hidden bg-transparent">
               <div 
                 ref={scrollRef}
-                className={`absolute inset-0 px-4 lg:px-8 custom-scrollbar pt-8 pb-32 ${messages.length > 0 ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
+                className={`absolute inset-0 px-4 lg:px-8 custom-scrollbar pt-6 pb-4 ${messages.length > 0 ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
               >
                 <div className="max-w-4xl mx-auto flex flex-col min-h-full">
                   <AnimatePresence mode="wait">
@@ -1235,7 +1257,7 @@ function AppContent() {
                           </BlurFade>
                         </div>
                       ) : (
-                        <div className="space-y-8 pb-20">
+                        <div className="space-y-6 pb-4">
                           {messages.map((m) => (
                             <motion.div 
                               key={m.id}
@@ -1253,9 +1275,6 @@ function AppContent() {
                                 lightLogo="/favicon.ico"
                                 darkLogo={logo3}
                               />
-                              <div className="flex items-center gap-4 mt-4 px-12 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 {/* Minimalist actions can go here if needed, but keeping it clean for now */}
-                              </div>
                             </motion.div>
                           ))}
                         </div>
@@ -1458,6 +1477,11 @@ function AppContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AuthDialog 
+        isOpen={isAuthDialogOpen} 
+        onOpenChange={setIsAuthDialogOpen} 
+      />
     </TooltipProvider>
   );
 }
