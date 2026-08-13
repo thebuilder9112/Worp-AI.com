@@ -43,7 +43,8 @@ export const formatAuthError = (error: any): string => {
     case 'auth/popup-closed-by-user':
       return 'Sign-in window was closed before completion.';
     case 'auth/unauthorized-domain':
-      return 'Domain not authorized in Firebase Auth. Sign in using Email & Password or add this domain in Firebase Console.';
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+      return `Domain (${currentHost}) is not in Firebase's Authorized Domains list. Add it in Firebase Console (Auth -> Settings -> Authorized Domains) or use Email/Guest sign-in below.`;
     case 'auth/operation-not-allowed':
       return 'This sign-in provider is not enabled in Firebase Console. Please use Email/Password.';
     case 'auth/too-many-requests':

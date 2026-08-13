@@ -256,14 +256,40 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
 
           {/* Alerts / Error feedback */}
           {errorMessage && (
-            <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/40 text-red-300 text-xs flex items-start gap-2.5 animate-in fade-in slide-in-from-top-1">
+            <div className="p-3.5 rounded-xl bg-red-950/50 border border-red-800/60 text-red-200 text-xs flex items-start gap-3 animate-in fade-in slide-in-from-top-1">
               <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <p className="font-medium leading-relaxed">{errorMessage}</p>
+              <div className="flex-1 space-y-2">
+                <p className="font-semibold text-red-100 leading-relaxed">{errorMessage}</p>
                 {errorMessage.toLowerCase().includes('domain') && (
-                  <p className="text-[11px] text-zinc-400 leading-normal pt-1 border-t border-red-900/40">
-                    💡 <strong>Tip:</strong> Email sign-in works instantly across any custom domain or Vercel deployment.
-                  </p>
+                  <div className="pt-2 border-t border-red-900/50 space-y-2 text-[11px] text-zinc-300">
+                    <p className="leading-normal">
+                      <strong>Why this happens:</strong> Firebase restricts OAuth popups to whitelisted domains for security.
+                    </p>
+                    <div className="p-2 bg-black/40 rounded-lg border border-red-900/40 font-mono text-[10px] text-zinc-300 flex items-center justify-between gap-2">
+                      <span className="truncate">{typeof window !== 'undefined' ? window.location.hostname : ''}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            navigator.clipboard.writeText(window.location.hostname);
+                            toast.success('Domain copied to clipboard!');
+                          }
+                        }}
+                        className="px-2 py-0.5 bg-red-900/60 hover:bg-red-800/80 text-white font-sans text-[10px] rounded transition-colors shrink-0"
+                      >
+                        Copy Domain
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleGuestSignIn}
+                        className="flex-1 py-1 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-md transition-colors text-center text-[11px]"
+                      >
+                        ⚡ Sign In as Guest Now
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
