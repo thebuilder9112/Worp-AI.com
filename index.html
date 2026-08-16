@@ -3,10 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Favicon & Brand Icons for Google Search & Browsers -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/logo.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/favicon.ico" />
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="shortcut icon" href="./favicon.ico">
+    <link rel="apple-touch-icon" sizes="192x192" href="/logo.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    
+    <!-- Canonical & App Naming -->
+    <link rel="canonical" href="https://worp-ai-com.vercel.app/" />
+    <meta name="application-name" content="Worp AI" />
+    <meta name="apple-mobile-web-app-title" content="Worp AI" />
     <meta name="theme-color" content="#050505" />
     <meta name="description" content="Worp AI: A high-end neural core and terminal assistant for advanced coding, creative art, and deep research. Sign in to access next-gen intelligence." />
     <meta name="keywords" content="Worp AI, Neural Assistant, Code Architect, Creative AI, Research Analyst" />
@@ -15,30 +24,33 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Worp AI | Advanced Neural Core Assistant" />
     <meta property="og:site_name" content="Worp AI" />
+    <meta property="og:url" content="https://worp-ai-com.vercel.app/" />
     <meta property="og:description" content="A powerful, terminal-inspired AI assistant for modern creators. Experience clinical efficiency and creative depth." />
-    <meta property="og:image" content="logo3.jpg" />
+    <meta property="og:image" content="/logo3.jpg" />
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:title" content="Worp AI | Advanced Neural Core" />
     <meta property="twitter:description" content="A high-end AI terminal for advanced assistance. Sign in to explore." />
-    <meta property="twitter:image" content="logo3.jpg" />
+    <meta property="twitter:image" content="/logo3.jpg" />
 
     <title>Worp AI | Advanced Neural Core Assistant</title>
+    
+    <!-- Google Search Structured Data (Site Name & WebApp Schema) -->
     <script type="application/ld+json">
     [
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Worp AI",
-        "alternateName": ["WorpAI", "Worp AI Console"],
-        "url": "https://thebuilder9112.github.io/Worp-AI/"
+        "alternateName": ["WorpAI", "Worp AI Core", "Worp AI Console", "worp-ai-com.vercel.app"],
+        "url": "https://worp-ai-com.vercel.app/"
       },
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "Worp AI",
-        "url": "https://thebuilder9112.github.io/Worp-AI/",
+        "url": "https://worp-ai-com.vercel.app/",
         "description": "High-end AI terminal assistant for code, art, and research.",
         "applicationCategory": "MultimediaApplication",
         "operatingSystem": "All"
@@ -48,7 +60,7 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
 
