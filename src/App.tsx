@@ -1015,27 +1015,31 @@ function AppContent() {
               </div>
             </SidebarContent>
 
-            <SidebarFooter className={`border-t p-2 transition-colors duration-500 ${friendlyMode ? 'border-zinc-800' : 'border-zinc-900'}`}>
+            <SidebarFooter className={`border-t p-2 transition-colors duration-500 ${isDarkMode ? (friendlyMode ? 'border-zinc-800' : 'border-zinc-900') : 'border-zinc-200'}`}>
               {user ? (
-                <div className="flex items-center gap-3 p-3 mb-2 rounded-xl border border-zinc-900 group hover:bg-zinc-900/40 transition-all cursor-pointer" onClick={() => setIsAuthDialogOpen(true)}>
+                <div className={`flex items-center gap-3 p-3 mb-2 rounded-xl border transition-all cursor-pointer ${
+                  isDarkMode 
+                    ? 'border-zinc-900 hover:bg-zinc-900/40 bg-zinc-950/40' 
+                    : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100 shadow-xs'
+                }`} onClick={() => setIsAuthDialogOpen(true)}>
                   {user.photoURL ? (
                     <img src={user.photoURL} alt="" className="w-8 h-8 rounded-full border border-zinc-800 shadow-sm" referrerPolicy="no-referrer" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
-                      <UserIcon className="w-4 h-4 text-zinc-500" />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-zinc-800' : 'bg-zinc-200'}`}>
+                      <UserIcon className={`w-4 h-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-700'}`} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-zinc-200 truncate">
+                    <p className={`text-xs font-bold truncate ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900 font-extrabold'}`}>
                       {user.isAnonymous ? 'Guest Operative' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Operative'))}
                     </p>
-                    <p className="text-[10px] text-zinc-500 truncate">
+                    <p className={`text-[10px] truncate ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>
                       {user.isAnonymous ? 'Ephemeral Sync' : (user.email || 'Synced to Mesh')}
                     </p>
                   </div>
                   <button 
                     onClick={(e) => { e.stopPropagation(); logout(); toast.info("Disconnected from session"); }} 
-                    className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                    className={`p-1.5 rounded-md transition-colors opacity-0 group-hover:opacity-100 ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500 hover:text-white' : 'hover:bg-zinc-200 text-zinc-600 hover:text-zinc-950'}`}
                     title="Log Out"
                   >
                     <LogOut className="w-3.5 h-3.5" />
@@ -1254,7 +1258,7 @@ function AppContent() {
                         <li><span className="text-theme-accent">/style</span> - Toggle between Terminal and Normal UI.</li>
                       </ul>
                       <Separator className={`bg-zinc-900 ${isDarkMode ? '' : 'bg-zinc-200'}`} />
-                      <p className={`text-xs ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`}>Built and architected by <span className="text-zinc-200 font-semibold">Aum Chauhan</span> • Powered by Worp Neural Engine</p>
+                      <p className={`text-xs ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}>Built and architected by <span className={`${isDarkMode ? 'text-zinc-100' : 'text-zinc-950 font-bold'}`}>Aum Chauhan</span> • Powered by Worp Neural Engine</p>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1294,8 +1298,8 @@ function AppContent() {
                                 Welcome to <span className="text-theme-accent">Worp AI</span>
                               </h1>
                               
-                              <p className="text-sm sm:text-base text-zinc-500 max-w-lg leading-relaxed">
-                                Hello, {profile?.displayName || 'Explorer'}. I am your neural assistant for {chatMode} tasks. 
+                              <p className={`text-sm sm:text-base max-w-lg leading-relaxed ${isDarkMode ? 'text-zinc-400' : 'text-zinc-700'}`}>
+                                Hello, <strong className={`font-semibold ${isDarkMode ? 'text-white' : 'text-zinc-950 font-bold'}`}>{profile?.displayName || user?.displayName || 'Explorer'}</strong>. I am your neural assistant for {chatMode} tasks. 
                                 How can I help you excel today?
                               </p>
 

@@ -99,9 +99,9 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
              <p className="text-sm font-medium">{command}</p>
           </div>
           <div className="flex items-center gap-2 mt-2 px-2">
-            <span className="text-[10px] text-theme-accent font-bold uppercase tracking-wider">{userName || 'User'}</span>
-            <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
-            <span className="text-[10px] text-zinc-500 font-medium">{format(timestamp, 'HH:mm')}</span>
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-theme-accent' : 'text-zinc-900 font-extrabold'}`}>{userName || 'User'}</span>
+            <span className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-zinc-500/30' : 'bg-zinc-400'}`} />
+            <span className={`text-[10px] font-medium ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>{format(timestamp, 'HH:mm')}</span>
           </div>
         </div>
 
