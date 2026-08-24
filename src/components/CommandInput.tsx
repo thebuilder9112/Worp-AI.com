@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal, Send, Sparkles } from 'lucide-react';
+import { Terminal, Send, Sparkles, Image, Search, Code, Brain, Zap, Palette, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../lib/ThemeContext';
+import { getRandomSuggestions, SuggestionItem } from '../data/suggestions';
 
 interface CommandInputProps {
   onSend: (command: string) => void;
@@ -14,14 +15,28 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onSend, disabled }) 
   const inputRef = useRef<HTMLInputElement>(null);
   const { chatMode, isDarkMode } = useTheme();
 
-  const suggestions = {
-    standard: ["Latest tech news", "Show me a photo of a galaxy", "Find best links for React"],
-    code: ["Optimize this SQL query", "React state vs props", "Latest Node.js features"],
-    art: ["Neon city photo", "Minimalist layout tips", "Show me impressionist art"],
-    research: ["Impact of AI on labor", "Black hole entropy", "Find research on CRISPR"]
+  const [currentSuggestions, setCurrentSuggestions] = useState<SuggestionItem[]>(() => getRandomSuggestions(chatMode, 3));
+
+  useEffect(() => {
+    setCurrentSuggestions(getRandomSuggestions(chatMode, 3));
+  }, [chatMode]);
+
+  const refreshSuggestions = () => {
+    setCurrentSuggestions(getRandomSuggestions(chatMode, 3));
   };
 
-  const currentSuggestions = suggestions[chatMode] || suggestions.standard;
+  const getIcon = (iconType: string) => {
+    switch (iconType) {
+      case 'image': return <Image className="w-3 h-3 text-theme-accent" />;
+      case 'search': return <Search className="w-3 h-3 text-theme-accent" />;
+      case 'code': return <Code className="w-3 h-3 text-theme-accent" />;
+      case 'brain': return <Brain className="w-3 h-3 text-theme-accent" />;
+      case 'terminal': return <Terminal className="w-3 h-3 text-theme-accent" />;
+      case 'palette': return <Palette className="w-3 h-3 text-theme-accent" />;
+      case 'zap': return <Zap className="w-3 h-3 text-theme-accent" />;
+      default: return <Sparkles className="w-3 h-3 text-theme-accent" />;
+    }
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -50,24 +65,40 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onSend, disabled }) 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="absolute -top-12 left-0 right-0 flex gap-2 overflow-x-auto pb-2 no-scrollbar"
+            className="absolute -top-12 left-0 right-0 flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar"
           >
             {currentSuggestions.map((s, i) => (
               <button
-                key={i}
+                key={`${s.label}-${i}`}
                 onClick={() => {
-                  onSend(s);
+                  onSend(s.label);
                   setShowSuggestions(false);
                 }}
-                className={`whitespace-nowrap px-3 py-1.5 rounded-full border text-[11px] hover:text-theme-accent hover:border-theme-accent-glow transition-all flex items-center gap-1.5 backdrop-blur-sm ${isDarkMode ? 'bg-zinc-900/60 border-zinc-800 text-zinc-400' : 'bg-white/60 border-zinc-200 text-zinc-500'}`}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all flex items-center gap-1.5 backdrop-blur-sm ${
+                  isDarkMode 
+                    ? 'bg-zinc-900/80 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700' 
+                    : 'bg-white text-zinc-800 border-zinc-300 hover:text-zinc-950 hover:bg-zinc-100 shadow-xs'
+                }`}
               >
-                <Sparkles className="w-3 h-3 text-theme-accent" />
-                {s}
+                {getIcon(s.iconType)}
+                {s.label}
               </button>
             ))}
+            <button
+              onClick={refreshSuggestions}
+              className={`p-1.5 rounded-full border transition-all ${
+                isDarkMode 
+                  ? 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-white' 
+                  : 'bg-white text-zinc-600 border-zinc-300 hover:text-zinc-950 hover:bg-zinc-100 shadow-xs'
+              }`}
+              title="Shuffle suggestions"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
 
       <div className="absolute inset-0 bg-theme-accent-glow blur-xl group-focus-within:bg-theme-accent-glow transition-colors pointer-events-none" />
       <div className={`relative border rounded-lg flex items-center px-4 py-3 focus-within:border-theme-accent-glow focus-within:ring-1 focus-within:ring-theme-accent-glow transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200 shadow-lg'}`}>

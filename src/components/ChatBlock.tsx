@@ -174,7 +174,7 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
 
       {/* AI Message - Aligned Left */}
       <div className="flex gap-6">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 overflow-hidden border ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 overflow-hidden border ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200 bg-zinc-50'}`}>
           {finalLogo ? (
             <img src={finalLogo} alt="AI" className="w-full h-full object-cover" />
           ) : (
@@ -186,32 +186,42 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
           <div className={`p-5 px-6 rounded-2xl rounded-tl-none shadow-sm border ${
             isDarkMode 
               ? 'bg-[#151518] border-zinc-800 text-zinc-200' 
-              : 'bg-white border-zinc-200 text-zinc-700'
+              : 'bg-white border-zinc-200 text-zinc-900 shadow-sm'
           }`}>
-            <div className="flex items-center gap-2 mb-4 border-b border-zinc-800/20 pb-2">
+            <div className={`flex items-center gap-2 mb-4 border-b pb-2 ${isDarkMode ? 'border-zinc-800/60' : 'border-zinc-100'}`}>
               <span className="text-[10px] font-bold text-theme-accent uppercase tracking-wider animate-shine bg-gradient-to-r from-theme-accent via-white to-theme-accent bg-clip-text text-transparent bg-[length:200%_auto]">Neural_Core_Output</span>
               <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
-              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-50">{timestamp.getTime()}</span>
+              <span className="text-[10px] text-zinc-500 font-mono lowercase opacity-60">{timestamp.getTime()}</span>
             </div>
-            <div className={`text-[15px] leading-relaxed markdown-friendly`}>
+            <div className={`text-[15px] leading-relaxed markdown-friendly ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900'}`}>
               <ReactMarkdown 
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
-                  p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                  p: ({ children }) => <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>,
                   code: ({ children, className }) => {
                     const isInline = !className;
                     const language = className?.replace('language-', '') || '';
                     const codeString = String(children).replace(/\n$/, '');
 
                     return isInline ? (
-                      <code className="px-1.5 py-0.5 rounded font-mono text-[13px] bg-zinc-900/50 text-theme-accent">{children}</code>
+                      <code className={`px-1.5 py-0.5 rounded font-mono text-[13px] font-semibold border ${
+                        isDarkMode 
+                          ? 'bg-zinc-800/90 text-emerald-400 border-zinc-700/60' 
+                          : 'bg-zinc-100 text-zinc-900 border-zinc-300'
+                      }`}>
+                        {children}
+                      </code>
                     ) : (
                       <div className="relative group/code my-6">
                         <div className="absolute top-2 right-2 opacity-0 group-hover/code:opacity-100 transition-opacity flex gap-2 z-10">
                            <button 
                              onClick={() => setPreviewState({ isOpen: true, code: codeString, language })}
-                             className={`p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-theme-accent transition-all`}
+                             className={`p-1.5 rounded border transition-all ${
+                               isDarkMode 
+                                 ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-theme-accent' 
+                                 : 'bg-white border-zinc-300 text-zinc-600 hover:text-zinc-950 shadow-sm'
+                             }`}
                              title="Preview"
                            >
                              <Eye className="w-3.5 h-3.5" />
@@ -222,16 +232,28 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                                navigator.clipboard.writeText(codeString);
                                toast.success("Code copied to synaptic buffer");
                              }}
-                             className={`p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white transition-all`}
+                             className={`p-1.5 rounded border transition-all ${
+                               isDarkMode 
+                                 ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' 
+                                 : 'bg-white border-zinc-300 text-zinc-600 hover:text-zinc-950 shadow-sm'
+                             }`}
                            >
                              <Copy className="w-3.5 h-3.5" />
                            </button>
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-2 bg-zinc-950 border-t border-x border-zinc-800 rounded-t-xl">
-                          <Terminal className="w-3 h-3 text-zinc-600" />
-                          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em]">{language || 'text'}</span>
+                        <div className={`flex items-center gap-2 px-4 py-2 border-t border-x rounded-t-xl ${
+                          isDarkMode 
+                            ? 'bg-zinc-950 border-zinc-800' 
+                            : 'bg-zinc-100 border-zinc-300 text-zinc-800'
+                        }`}>
+                          <Terminal className={`w-3 h-3 ${isDarkMode ? 'text-zinc-600' : 'text-zinc-500'}`} />
+                          <span className={`text-[9px] font-bold uppercase tracking-[0.2em] ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>{language || 'text'}</span>
                         </div>
-                        <pre className={`relative p-5 rounded-b-xl border border-zinc-800 overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${isDarkMode ? 'bg-black/60' : 'bg-zinc-50 text-zinc-900'}`}>
+                        <pre className={`relative p-5 rounded-b-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${
+                          isDarkMode 
+                            ? 'bg-black/60 border-zinc-800 text-zinc-100' 
+                            : 'bg-zinc-50 border-zinc-300 text-zinc-950'
+                        }`}>
                           <code>{children}</code>
                         </pre>
                       </div>

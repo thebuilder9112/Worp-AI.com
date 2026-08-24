@@ -44,8 +44,11 @@ import {
   FileText,
   Terminal,
   Copy,
-  FileCode
+  FileCode,
+  RotateCcw
 } from 'lucide-react';
+import { getRandomSuggestions, SuggestionItem } from './data/suggestions';
+
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -153,6 +156,30 @@ function AppContent() {
   } = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
   
+  const [randomSuggestions, setRandomSuggestions] = useState<SuggestionItem[]>(() => getRandomSuggestions('standard', 3));
+
+  // Shuffle/update suggestions on mode change or first load
+  useEffect(() => {
+    setRandomSuggestions(getRandomSuggestions(chatMode, 3));
+  }, [chatMode]);
+
+  const refreshRandomSuggestions = () => {
+    setRandomSuggestions(getRandomSuggestions(chatMode, 3));
+  };
+
+  const getSuggestionIcon = (iconType: string) => {
+    switch (iconType) {
+      case 'image': return <Image className="w-3 h-3" />;
+      case 'search': return <Search className="w-3 h-3" />;
+      case 'code': return <Code className="w-3 h-3" />;
+      case 'brain': return <Brain className="w-3 h-3" />;
+      case 'terminal': return <Terminal className="w-3 h-3" />;
+      case 'palette': return <Palette className="w-3 h-3" />;
+      case 'zap': return <Zap className="w-3 h-3" />;
+      default: return <Sparkles className="w-3 h-3" />;
+    }
+  };
+
   const themes: { id: ThemeType; color: string; label: string }[] = [
     { id: 'warp-dark', color: 'bg-zinc-800', label: 'Dark' },
     { id: 'warp-emerald', color: 'bg-emerald-500', label: 'Emerald' },
@@ -234,46 +261,77 @@ function AppContent() {
   useEffect(() => {
     if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
 
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        setIsListening(false);
-        toast.success("Voice captured");
-      };
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setInput(prev => prev + (prev ? ' ' : '') + transcript);
+          setIsListening(false);
+          toast.success("Voice captured");
+        };
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (event.error !== 'no-speech') {
-          toast.error("Speech recognition failed: " + event.error);
-        }
-      };
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition status:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            toast.error("Microphone access is blocked. Please allow microphone permission in your browser to use voice input.", { duration: 4000 });
+          } else if (event.error === 'audio-capture') {
+            toast.error("No microphone was found. Please check your audio input device.");
+          } else if (event.error === 'network') {
+            toast.error("Speech service network error. Please try again.");
+          } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            toast.error(`Voice input error: ${event.error}`);
+          }
+        };
 
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      } catch (err) {
+        console.warn("Could not initialize SpeechRecognition:", err);
+      }
     }
   }, []);
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (!recognitionRef.current) {
-      toast.error("Speech recognition not supported in this browser.");
+      toast.error("Speech recognition is not supported in this browser environment. Chrome/Edge recommended.");
       return;
     }
 
     if (isListening) {
       recognitionRef.current.stop();
+      setIsListening(false);
     } else {
       try {
+        // Request microphone permission if available
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Stop the temporary stream right away
+            stream.getTracks().forEach(track => track.stop());
+          } catch (permErr: any) {
+            if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+              toast.error("Microphone permission was denied. Please allow microphone access in your browser settings.");
+              return;
+            }
+          }
+        }
         setIsListening(true);
         recognitionRef.current.start();
-      } catch (e) {
-        console.error(e);
+        toast.info("Listening... Speak now", { duration: 2500 });
+      } catch (e: any) {
+        console.error("Speech start error:", e);
         setIsListening(false);
+        if (e?.name !== 'InvalidStateError') {
+          toast.error("Unable to start microphone. Please check browser permissions.");
+        }
       }
     }
   };
@@ -1207,7 +1265,7 @@ function AppContent() {
             <div className="flex-1 relative overflow-hidden bg-transparent">
               <div 
                 ref={scrollRef}
-                className={`absolute inset-0 px-4 lg:px-8 custom-scrollbar pt-6 pb-4 ${messages.length > 0 ? 'overflow-y-auto' : 'overflow-y-hidden'}`}
+                className="absolute inset-0 px-4 lg:px-8 custom-scrollbar pt-4 pb-4 overflow-y-auto"
               >
                 <div className="max-w-4xl mx-auto flex flex-col min-h-full">
                   <AnimatePresence mode="wait">
@@ -1220,35 +1278,34 @@ function AppContent() {
                       className="flex-1 flex flex-col"
                     >
                       {messages.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] text-center">
-                          <BlurFade delay={0.2} inView>
+                        <div className="flex-1 flex flex-col items-center justify-center py-8 text-center my-auto">
+                          <BlurFade delay={0.1} inView>
                             <motion.div 
-                              initial={{ opacity: 0, y: 20 }}
+                              initial={{ opacity: 0, y: 15 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="flex flex-col items-center space-y-8 max-w-2xl px-4"
+                              className="flex flex-col items-center space-y-6 max-w-2xl px-4"
                             >
                               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-theme-accent/10 border border-theme-accent/20">
                                 <Zap className="w-3 h-3 text-theme-accent" />
                                 <span className="text-[10px] font-bold text-theme-accent uppercase tracking-widest">Neural_Core v2.0</span>
                               </div>
                               
-                              <h1 className={`text-5xl md:text-7xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
-                                Welcome to <br />
-                                <span className="text-theme-accent">Worp AI</span>
+                              <h1 className={`text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight ${isDarkMode ? 'text-white' : 'text-zinc-900'}`}>
+                                Welcome to <span className="text-theme-accent">Worp AI</span>
                               </h1>
                               
-                              <p className="text-lg md:text-xl text-zinc-500 max-w-xl leading-relaxed">
+                              <p className="text-sm sm:text-base text-zinc-500 max-w-lg leading-relaxed">
                                 Hello, {profile?.displayName || 'Explorer'}. I am your neural assistant for {chatMode} tasks. 
                                 How can I help you excel today?
                               </p>
 
-                              <div className="flex flex-wrap items-center justify-center gap-3">
+                              <div className="flex flex-wrap items-center justify-center gap-2">
                                 {[
                                   "Analyze complex codebases",
                                   "Generate creative art",
                                   "Solve logical puzzles"
                                 ].map((tag, idx) => (
-                                  <span key={idx} className={`text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border ${isDarkMode ? 'border-zinc-800 text-zinc-600' : 'border-zinc-200 text-zinc-400'}`}>
+                                  <span key={idx} className={`text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border ${isDarkMode ? 'border-zinc-800 text-zinc-500' : 'border-zinc-200 text-zinc-400'}`}>
                                     {tag}
                                   </span>
                                 ))}
@@ -1288,29 +1345,45 @@ function AppContent() {
             {/* Bottom Input Area */}
             <div className="px-6 pb-6 pt-2 z-40 transition-all duration-700 bg-transparent flex flex-col items-center">
               <div className="max-w-4xl w-full">
-                {/* Suggestions always above input - more compact and subtle */}
+                {/* Dynamic Randomized Suggestions with High Contrast */}
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-wrap gap-2 justify-center sm:justify-start mb-4 opacity-90"
+                  className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mb-4"
                 >
-                  {[
-                    { label: "Latest tech news", icon: <Sparkles className="w-3 h-3" /> },
-                    { label: "Show me a photo of a galaxy", icon: <Image className="w-3 h-3" /> },
-                    { label: "Find best links for React", icon: <Search className="w-3 h-3" /> },
-                  ].map((item, i) => (
+                  {randomSuggestions.map((item, i) => (
                     <motion.button 
-                      key={i}
+                      key={`${item.label}-${i}`}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => { setInput(item.label); handleSendCommand(item.label); }}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-[11px] font-medium border ${isDarkMode ? 'bg-zinc-900/50 text-zinc-400 border-zinc-800/80 hover:bg-zinc-800 hover:text-zinc-200' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-[11px] font-semibold border ${
+                        isDarkMode 
+                          ? 'bg-zinc-900/70 text-zinc-300 border-zinc-800 hover:bg-zinc-800 hover:text-white' 
+                          : 'bg-white text-zinc-800 border-zinc-300/90 hover:bg-zinc-100 hover:text-zinc-950 shadow-xs'
+                      }`}
                     >
-                      <span className="text-theme-accent">{item.icon}</span>
-                      {item.label}
+                      <span className="text-theme-accent shrink-0">{getSuggestionIcon(item.iconType)}</span>
+                      <span className="truncate max-w-[240px] sm:max-w-none">{item.label}</span>
                     </motion.button>
                   ))}
+
+                  {/* Quick Shuffle/Randomize button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05, rotate: 90 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={refreshRandomSuggestions}
+                    className={`p-1.5 rounded-full transition-all border ${
+                      isDarkMode 
+                        ? 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-theme-accent hover:bg-zinc-800' 
+                        : 'bg-white text-zinc-600 border-zinc-300/90 hover:text-zinc-950 hover:bg-zinc-100 shadow-xs'
+                    }`}
+                    title="Get new random suggestions"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </motion.button>
                 </motion.div>
+
                 
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}

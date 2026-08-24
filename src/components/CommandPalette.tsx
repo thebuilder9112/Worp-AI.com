@@ -12,6 +12,7 @@ import {
   Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useTheme } from '../lib/ThemeContext';
 
 interface CommandAction {
   id: string;
@@ -31,6 +32,7 @@ interface CommandPaletteProps {
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, actions }) => {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const { isDarkMode } = useTheme();
 
   const filteredActions = actions.filter(action => 
     action.label.toLowerCase().includes(search.toLowerCase()) ||
@@ -81,20 +83,28 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl z-[151] overflow-hidden"
+            className={`fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl border rounded-2xl shadow-2xl z-[151] overflow-hidden ${
+              isDarkMode 
+                ? 'bg-zinc-950 border-zinc-800' 
+                : 'bg-white border-zinc-300 shadow-2xl text-zinc-900'
+            }`}
           >
-            <div className="p-4 border-b border-zinc-900 flex items-center gap-3">
-              <Search className="w-5 h-5 text-zinc-500" />
+            <div className={`p-4 border-b flex items-center gap-3 ${isDarkMode ? 'border-zinc-900' : 'border-zinc-100'}`}>
+              <Search className={`w-5 h-5 ${isDarkMode ? 'text-zinc-500' : 'text-zinc-400'}`} />
               <input 
                 autoFocus
                 type="text" 
                 placeholder="Type a command or search..." 
-                className="bg-transparent border-none outline-none text-zinc-200 w-full text-base placeholder:text-zinc-600"
+                className={`bg-transparent border-none outline-none w-full text-base font-medium ${
+                  isDarkMode 
+                    ? 'text-zinc-200 placeholder:text-zinc-600' 
+                    : 'text-zinc-900 placeholder:text-zinc-400'
+                }`}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-900 border border-zinc-800">
-                <span className="text-[10px] font-bold text-zinc-500 uppercase">ESC</span>
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-zinc-500' : 'bg-zinc-100 border-zinc-200 text-zinc-600'}`}>
+                <span className="text-[10px] font-bold uppercase">ESC</span>
               </div>
             </div>
 
@@ -105,7 +115,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Could group by category here if needed */}
                   <div className="space-y-1">
                     {filteredActions.map((action, index) => (
                       <button
@@ -115,19 +124,37 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
                           onClose();
                         }}
                         onMouseEnter={() => setSelectedIndex(index)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${index === selectedIndex ? 'bg-zinc-900 text-theme-accent' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300'}`}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                          index === selectedIndex 
+                            ? isDarkMode 
+                              ? 'bg-zinc-900 text-white' 
+                              : 'bg-zinc-100 text-zinc-950 font-medium'
+                            : isDarkMode 
+                              ? 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-300' 
+                              : 'text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900'
+                        }`}
                       >
-                        <div className={`p-2 rounded-lg ${index === selectedIndex ? 'bg-theme-accent-glow' : 'bg-zinc-950 border border-zinc-900'}`}>
+                        <div className={`p-2 rounded-lg ${
+                          index === selectedIndex 
+                            ? 'bg-theme-accent/20 text-theme-accent' 
+                            : isDarkMode 
+                              ? 'bg-zinc-900 border border-zinc-800 text-zinc-400' 
+                              : 'bg-zinc-100 border border-zinc-200 text-zinc-700'
+                        }`}>
                           {action.icon}
                         </div>
                         <div className="flex-1 text-left">
-                          <p className="text-sm font-bold">{action.label}</p>
-                          <p className="text-[10px] uppercase tracking-widest opacity-50">{action.category}</p>
+                          <p className="text-sm font-semibold">{action.label}</p>
+                          <p className="text-[10px] uppercase tracking-widest opacity-60 font-mono">{action.category}</p>
                         </div>
                         {action.shortcut && (
                           <div className="flex items-center gap-1">
                             {action.shortcut.split('+').map((key, i) => (
-                              <span key={i} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[9px] font-bold text-zinc-500 uppercase">
+                              <span key={i} className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase ${
+                                isDarkMode 
+                                  ? 'bg-zinc-800 border-zinc-700 text-zinc-400' 
+                                  : 'bg-zinc-100 border-zinc-300 text-zinc-700'
+                              }`}>
                                 {key}
                               </span>
                             ))}
@@ -140,20 +167,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
               )}
             </div>
 
-            <div className="p-3 border-t border-zinc-900 bg-zinc-950/50 flex items-center justify-between">
+            <div className={`p-3 border-t flex items-center justify-between ${isDarkMode ? 'border-zinc-900 bg-zinc-950/50' : 'border-zinc-100 bg-zinc-50/80'}`}>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-zinc-600 uppercase">↑↓</span>
-                  <span className="text-[10px] text-zinc-700 font-mono">NAVIGATE</span>
+                  <span className={`text-[10px] font-bold uppercase ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>↑↓</span>
+                  <span className={`text-[10px] font-mono ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>NAVIGATE</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-zinc-600 uppercase">ENTER</span>
-                  <span className="text-[10px] text-zinc-700 font-mono">EXECUTE</span>
+                  <span className={`text-[10px] font-bold uppercase ${isDarkMode ? 'text-zinc-600' : 'text-zinc-400'}`}>ENTER</span>
+                  <span className={`text-[10px] font-mono ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>EXECUTE</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Zap className="w-3 h-3 text-zinc-800" />
-                <span className="text-[9px] font-bold text-zinc-800 uppercase tracking-widest">Worp_CMD_v1.0</span>
+                <Zap className={`w-3 h-3 ${isDarkMode ? 'text-zinc-700' : 'text-zinc-400'}`} />
+                <span className={`text-[9px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-zinc-700' : 'text-zinc-500'}`}>Worp_CMD_v1.0</span>
               </div>
             </div>
           </motion.div>
