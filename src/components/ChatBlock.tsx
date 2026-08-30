@@ -96,7 +96,7 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
         {/* User Bubble */}
         <div className="flex flex-col items-end">
           <div className="max-w-[80%] bg-theme-accent text-white px-5 py-3 rounded-3xl rounded-tr-none shadow-xl">
-             <p className="text-sm font-medium">{command}</p>
+             <p className="text-sm font-medium whitespace-pre-wrap break-words">{command}</p>
           </div>
           <div className="flex items-center gap-2 mt-2 px-2">
             <span className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-theme-accent' : 'text-zinc-900 font-extrabold'}`}>{userName || 'User'}</span>
@@ -168,7 +168,7 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
             ? 'bg-[#2a2a2c] border-zinc-700/50 text-white font-medium' 
             : 'bg-zinc-100 border-zinc-200 text-zinc-900'
         }`}>
-          <p className="text-[15px] leading-relaxed tracking-tight">{command}</p>
+          <p className="text-[15px] leading-relaxed tracking-tight whitespace-pre-wrap break-words">{command}</p>
         </div>
       </div>
 

@@ -145,6 +145,7 @@ function AppContent() {
   const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const { 
@@ -1446,24 +1447,44 @@ function AppContent() {
                       </button>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <div className="pl-4 flex items-center gap-1 text-zinc-600 font-mono text-sm group-focus-within:text-theme-accent transition-colors">
+                  <div className="flex items-start gap-2 pt-2 px-2">
+                    <div className="pl-2 pt-2.5 flex items-center gap-1 text-zinc-600 font-mono text-sm group-focus-within:text-theme-accent transition-colors shrink-0">
                       <span>{">"}</span>
                       <span className="animate-pulse">_</span>
                     </div>
-                    <Input 
+                    <textarea 
                       id="chat-user-input"
-                      placeholder={attachedFile ? "Ask Worp about this attachment, or type a prompt..." : "Ask Worp anything or paste an image (Ctrl+V)..."}
-                      className={`bg-transparent border-none focus-visible:ring-0 text-[15px] py-6 px-1 placeholder:text-zinc-600 font-sans tracking-tight ${isDarkMode ? 'text-zinc-300' : 'text-zinc-900'}`}
+                      ref={textareaRef}
+                      rows={1}
+                      placeholder={attachedFile ? "Ask Worp about this attachment, or type a prompt..." : "Ask Worp anything or paste an image (Ctrl+V)... (Shift+Enter for newline)"}
+                      className={`bg-transparent border-none focus:outline-none focus:ring-0 text-[15px] py-2 px-1 placeholder:text-zinc-600 font-sans tracking-tight resize-none flex-1 min-h-[40px] max-h-[220px] overflow-y-auto leading-relaxed custom-scrollbar ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900'}`}
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendCommand(input)}
+                      onChange={(e) => {
+                        setInput(e.target.value);
+                        // Auto-adjust height to fit content up to max-height
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendCommand(input);
+                          if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                          }
+                        }
+                      }}
                       onPaste={handlePaste}
                     />
-                    <div className="flex items-center gap-1 pr-2">
+                    <div className="flex items-center gap-1 pr-2 pt-1 shrink-0">
                       <button 
                         id="submit-command-btn"
-                        onClick={() => handleSendCommand(input)}
+                        onClick={() => {
+                          handleSendCommand(input);
+                          if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                          }
+                        }}
                         className={`p-2 rounded-xl transition-all ${input.trim() || attachedFile ? 'bg-theme-accent text-zinc-950 shadow-[0_0_15px_var(--accent-glow)] scale-105' : 'bg-zinc-900 text-zinc-700'}`}
                       >
                         <SendHorizontal className="w-5 h-5" />

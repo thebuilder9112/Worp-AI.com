@@ -263,7 +263,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                 {errorMessage.toLowerCase().includes('domain') && (
                   <div className="pt-2 border-t border-red-900/50 space-y-2 text-[11px] text-zinc-300">
                     <p className="leading-normal">
-                      <strong>Why this happens:</strong> Firebase restricts OAuth popups to whitelisted domains for security.
+                      <strong>Authorized Domain Setup:</strong> In Firebase Console (Authentication &rarr; Settings &rarr; Authorized Domains), add your domain below:
                     </p>
                     <div className="p-2 bg-black/40 rounded-lg border border-red-900/40 font-mono text-[10px] text-zinc-300 flex items-center justify-between gap-2">
                       <span className="truncate">{typeof window !== 'undefined' ? window.location.hostname : ''}</span>
@@ -280,13 +280,14 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                         Copy Domain
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={handleGuestSignIn}
-                        className="flex-1 py-1 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-md transition-colors text-center text-[11px]"
+                        className="w-full py-1.5 px-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-md transition-colors text-center text-[11px] flex items-center justify-center gap-1.5"
                       >
-                        ⚡ Sign In as Guest Now
+                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                        Continue with Guest Access
                       </button>
                     </div>
                   </div>
