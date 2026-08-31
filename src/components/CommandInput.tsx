@@ -118,7 +118,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({ onSend, disabled }) 
           }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder={disabled ? "Worp is processing..." : "Ask Worp anything... (Shift+Enter for newline)"}
+          placeholder={disabled ? "Worp is processing..." : "Ask anything"}
           className={`bg-transparent border-none outline-none focus:outline-none focus:ring-0 flex-1 text-sm font-mono resize-none min-h-[36px] max-h-[200px] overflow-y-auto leading-relaxed py-1 custom-scrollbar ${isDarkMode ? 'text-zinc-200 placeholder:text-zinc-600' : 'text-zinc-900 placeholder:text-zinc-400'}`}
         />
         <button

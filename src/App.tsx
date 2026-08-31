@@ -627,16 +627,16 @@ function AppContent() {
     setAttachedFile(null); // Clear synaptic link after dispatch
 
     try {
-      // Save User Message to Firestore
+      // Save User Message to Firestore in the background without blocking stream start
       if (user && sessionId) {
-        await addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
+        addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
           role: 'user',
           text: effectiveCommand,
           timestamp: serverTimestamp()
-        });
+        }).catch(err => console.warn("Firestore user message background save warning:", err));
       }
 
-      const history = messages.map(m => [
+      const history = messages.slice(-10).map(m => [
         { role: 'user' as const, parts: [{ text: m.command }] },
         { role: 'model' as const, parts: [{ text: m.response }] }
       ]).flat();
@@ -651,13 +651,13 @@ function AppContent() {
         ));
       }
 
-      // Save Model Response to Firestore
+      // Save Model Response to Firestore in background
       if (user && sessionId) {
-        await addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
+        addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
           role: 'model',
           text: fullResponse,
           timestamp: serverTimestamp()
-        });
+        }).catch(err => console.warn("Firestore model message background save warning:", err));
       }
 
       setMessages(prev => prev.map(m => 
@@ -1456,8 +1456,8 @@ function AppContent() {
                       id="chat-user-input"
                       ref={textareaRef}
                       rows={1}
-                      placeholder={attachedFile ? "Ask Worp about this attachment, or type a prompt..." : "Ask Worp anything or paste an image (Ctrl+V)... (Shift+Enter for newline)"}
-                      className={`bg-transparent border-none focus:outline-none focus:ring-0 text-[15px] py-2 px-1 placeholder:text-zinc-600 font-sans tracking-tight resize-none flex-1 min-h-[40px] max-h-[220px] overflow-y-auto leading-relaxed custom-scrollbar ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900'}`}
+                      placeholder={attachedFile ? "Ask anything about this attachment..." : "Ask anything"}
+                      className={`bg-transparent border-none focus:outline-none focus:ring-0 text-[15px] py-2 px-1 placeholder:text-zinc-500 font-sans tracking-tight resize-none flex-1 min-h-[40px] max-h-[220px] overflow-y-auto leading-relaxed custom-scrollbar ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900'}`}
                       value={input}
                       onChange={(e) => {
                         setInput(e.target.value);

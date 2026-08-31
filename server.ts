@@ -59,9 +59,11 @@ async function startServer() {
 
       const { messages = [], chatMode = 'standard', attachedFile } = body;
 
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // Disable proxy buffering for immediate TTFB
+      res.flushHeaders?.();
 
       let apiKey = process.env.VITE_API_KEY || process.env.GEMINI_API_KEY;
       const isPlaceholder = !apiKey || apiKey === "YOUR_API_KEY_HERE" || apiKey.startsWith("MY_GE");
@@ -79,7 +81,9 @@ async function startServer() {
         }
       });
       
-      const history = (messages.slice(0, -1) || []).map((msg: any) => {
+      // Keep recent context for fast turnaround
+      const recentMessages = messages.slice(-10);
+      const history = (recentMessages.slice(0, -1) || []).map((msg: any) => {
         const text = msg.response || msg.content || msg.command || '';
         const role = (msg.role === 'user' || msg.command) && !msg.response ? 'user' : (msg.role === 'model' || msg.response ? 'model' : 'user');
         return {
@@ -91,7 +95,7 @@ async function startServer() {
       const lastMessage = messages.length > 0 ? messages[messages.length - 1] : { command: '', content: '' };
       const userText = lastMessage.command || lastMessage.content || '';
       
-      // Dynamic Query Retrieval from Worp AI Knowledge Base
+      // Fast Dynamic Query Retrieval from Worp AI Knowledge Base
       const matches = queryKnowledgeBase(userText, 1);
       let kbContext = "";
       if (matches.length > 0) {
