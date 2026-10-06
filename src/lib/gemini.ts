@@ -8,7 +8,7 @@ export async function* streamChat(
   message: string, 
   history: { role: 'user' | 'model', parts: { text: string }[] }[],
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard',
-  attachedFile?: { name: string, type: string, data: string } | null
+  attachedFile?: { name: string, type: string, data: string } | Array<{ name: string, type: string, data: string }> | null
 ) {
   const isStaticHosting = typeof window !== 'undefined' && 
     (window.location.hostname.endsWith('github.io') || 
@@ -16,10 +16,14 @@ export async function* streamChat(
 
   const clientKey = DEFAULT_VITE_API_KEY;
 
+  const filesList: Array<{ name: string, type: string, data: string }> = Array.isArray(attachedFile)
+    ? attachedFile
+    : (attachedFile && attachedFile.data ? [attachedFile] : []);
+
   // If on static hosting, directly use client-side streaming
   if (isStaticHosting) {
     try {
-      yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
+      yield* streamDirectClient(message, history, clientKey, filesList, mode);
       return;
     } catch (err) {
       console.error("Direct connection failed:", err);
@@ -33,7 +37,8 @@ export async function* streamChat(
     messages,
     mode,
     chatMode: mode,
-    attachedFile
+    attachedFile: filesList[0] || null,
+    attachedFiles: filesList
   };
 
   try {
@@ -93,7 +98,7 @@ export async function* streamChat(
   } catch (err: any) {
     console.warn("Server streaming encountered error, attempting direct client fallback:", err);
     try {
-      yield* streamDirectClient(message, history, clientKey, attachedFile, mode);
+      yield* streamDirectClient(message, history, clientKey, filesList, mode);
     } catch (fallbackErr: any) {
       throw new Error(fallbackErr?.message || err?.message || "Neural link failure");
     }
@@ -105,7 +110,7 @@ async function* streamDirectClient(
   message: string,
   history: { role: 'user' | 'model', parts: { text: string }[] }[],
   apiKey: string,
-  attachedFile?: { name: string, type: string, data: string } | null,
+  attachedFiles?: { name: string, type: string, data: string } | Array<{ name: string, type: string, data: string }> | null,
   mode: 'standard' | 'code' | 'art' | 'research' = 'standard'
 ) {
   if (!apiKey || apiKey === "AIzaSyBIrHLPgdDBdmeny7zvSY-EyPZo21T2uAw" || apiKey === "YOUR_API_KEY_HERE") {
@@ -129,8 +134,15 @@ async function* streamDirectClient(
   let contents: any[] = [...mappedHistory];
   let lastParts: any[] = [];
 
-  if (attachedFile && attachedFile.data) {
-    let mimeType = attachedFile.type || "image/jpeg";
+  const filesList: Array<{ name: string, type: string, data: string }> = Array.isArray(attachedFiles)
+    ? attachedFiles
+    : (attachedFiles && attachedFiles.data ? [attachedFiles] : []);
+
+  for (let i = 0; i < filesList.length; i++) {
+    const item = filesList[i];
+    if (!item || !item.data) continue;
+
+    let mimeType = item.type || "image/jpeg";
     if (!mimeType.includes('/')) {
       mimeType = `image/${mimeType}`;
     }
@@ -138,13 +150,36 @@ async function* streamDirectClient(
       mimeType = 'image/png';
     }
 
-    let base64Data = attachedFile.data;
+    let base64Data = item.data;
     if (base64Data.includes(',')) {
       base64Data = base64Data.split(',')[1];
     }
     base64Data = base64Data.trim();
 
-    if (base64Data) {
+    const isTextOrCode = mimeType.startsWith("text/") || 
+      mimeType.includes("json") || 
+      mimeType.includes("javascript") || 
+      mimeType.includes("typescript") || 
+      mimeType.includes("xml") || 
+      mimeType.includes("csv") || 
+      mimeType.includes("markdown") || 
+      Boolean(item.name && item.name.match(/\.(ts|tsx|js|jsx|json|md|py|css|html|txt|csv|sql|env|yaml|yml|sh|rs|go|c|cpp|h)$/i));
+
+    if (isTextOrCode && base64Data) {
+      try {
+        const decoded = atob(base64Data);
+        lastParts.push({
+          text: `[RESOURCE ATTACHMENT ${i + 1}/${filesList.length}: "${item.name}" (Type: ${mimeType})]\n\`\`\`\n${decoded}\n\`\`\`\n[END OF RESOURCE: "${item.name}"]`
+        });
+      } catch {
+        lastParts.push({
+          inlineData: {
+            mimeType,
+            data: base64Data
+          }
+        });
+      }
+    } else if (base64Data) {
       lastParts.push({
         inlineData: {
           mimeType,
@@ -154,7 +189,7 @@ async function* streamDirectClient(
     }
   }
 
-  const promptText = message || (attachedFile ? "Please inspect and describe this attached image or file." : "Hello Worp");
+  const promptText = message || (filesList.length > 0 ? `Please inspect and describe these ${filesList.length} attached items.` : "Hello Worp");
   lastParts.push({ text: promptText });
   contents.push({ role: "user", parts: lastParts });
 

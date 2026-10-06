@@ -45,8 +45,18 @@ import {
   Terminal,
   Copy,
   FileCode,
-  RotateCcw
+  RotateCcw,
+  FileDown,
+  AtSign,
+  Link2,
+  Sliders,
+  Wand2,
+  X,
+  Paperclip,
+  Layers,
+  Files
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { getRandomSuggestions, SuggestionItem } from './data/suggestions';
 
 import { Separator } from '@/components/ui/separator';
@@ -78,13 +88,29 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShimmerButton } from '@/components/ui/shimmer-button';
 import { BlurFade } from '@/components/ui/blur-fade';
 import { Toaster, toast } from 'sonner';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, limit, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, limit, updateDoc, getDocs } from 'firebase/firestore';
 import { db, signInWithGoogle, logout, auth } from './lib/firebase';
 import { ThemeProvider, useTheme, ThemeType, ChatMode } from './lib/ThemeContext';
 import { Logo } from './components/Logo';
 import { TerminalEffects } from './components/TerminalEffects';
 import { CommandPalette } from './components/CommandPalette';
 import { AuthDialog } from './components/AuthDialog';
+import { CustomCommandsManager } from './components/CustomCommandsManager';
+import { MultiItemModal } from './components/MultiItemModal';
+import { 
+  AttachedItem, 
+  readFileAsAttachedItem, 
+  formatFileSize, 
+  getItemBadgeLabel 
+} from './lib/attachmentUtils';
+import { 
+  CustomCommand, 
+  DEFAULT_COMMANDS, 
+  loadStoredCommands, 
+  saveStoredCommands, 
+  parseCommandCreation, 
+  findMatchingCustomCommand 
+} from './lib/customCommands';
 
 import lightLogo from '/favicon.ico';
 import darkLogo from './logo3.jpg';
@@ -105,12 +131,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
+export type { AttachedItem };
+
 interface Message {
   id: string;
   command: string;
   response: string;
   timestamp: Date;
   isStreaming?: boolean;
+  attachments?: AttachedItem[];
 }
 
 interface ChatSession {
@@ -118,6 +147,117 @@ interface ChatSession {
   title: string;
   mode: string;
   createdAt: any;
+}
+
+function extractLinkedSessions(text: string, availableSessions: ChatSession[]): ChatSession[] {
+  const matches: ChatSession[] = [];
+  const addedIds = new Set<string>();
+
+  // 1. Quoted session mention: @"Session Name"
+  const quotedRegex = /@"([^"]+)"/g;
+  let qm;
+  while ((qm = quotedRegex.exec(text)) !== null) {
+    const targetTitle = qm[1].trim().toLowerCase();
+    const found = availableSessions.find(s => s.title.trim().toLowerCase() === targetTitle);
+    if (found && !addedIds.has(found.id)) {
+      matches.push(found);
+      addedIds.add(found.id);
+    }
+  }
+
+  // 2. Unquoted @slug or @name or @previous / @last
+  const mentionRegex = /@([a-zA-Z0-9_\-\.]+)/g;
+  let mm;
+  while ((mm = mentionRegex.exec(text)) !== null) {
+    const rawTag = mm[1].trim();
+    const tagLower = rawTag.toLowerCase();
+
+    if (tagLower === 'previous' || tagLower === 'last') {
+      if (availableSessions.length > 0) {
+        const prev = availableSessions[0];
+        if (!addedIds.has(prev.id)) {
+          matches.push(prev);
+          addedIds.add(prev.id);
+        }
+      }
+      continue;
+    }
+
+    const found = availableSessions.find(s => {
+      const sTitle = s.title.trim().toLowerCase();
+      const sClean = sTitle.replace(/\s+/g, '_');
+      const sHyphen = sTitle.replace(/\s+/g, '-');
+      return sTitle === tagLower || sClean === tagLower || sHyphen === tagLower || s.id === rawTag;
+    });
+
+    if (found && !addedIds.has(found.id)) {
+      matches.push(found);
+      addedIds.add(found.id);
+    }
+  }
+
+  // 3. Match full session titles if prefixed with @
+  for (const session of availableSessions) {
+    if (!addedIds.has(session.id) && session.title) {
+      const escaped = session.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`@${escaped}\\b`, 'i').test(text)) {
+        matches.push(session);
+        addedIds.add(session.id);
+      }
+    }
+  }
+
+  return matches;
+}
+
+function buildInitDirective(options: {
+  attachedFiles?: AttachedItem[];
+  attachedFile?: { name: string; type: string; data: string } | null;
+  virtualFiles?: { name: string; content: string; language: string }[];
+  linkedSessions?: ChatSession[];
+}): string {
+  const parts: string[] = [
+    `[SYSTEM DIRECTIVE: \\INIT COMPREHENSIVE MULTI-MODAL INITIALIZATION PROTOCOL]`,
+    `The user has invoked the \\init command. You are acting as an elite Principal Software & Systems Architect performing an exhaustive ingestion, audit, and structural breakdown of ALL available resources, code files, attachments, and referenced conversations.`,
+    ``,
+    `Your objectives:`,
+    `1. COMPREHENSIVE INGESTION: Read, deconstruct, and absorb all attachments (images, documents, code files, datasets), virtual workspace files, and linked chat histories provided.`,
+    `2. ARCHITECTURAL & STRUCTURAL AUDIT:`,
+    `   - Identify schemas, data structures, state trees, logic pipelines, and API patterns.`,
+    `   - If images/diagrams/screenshots are attached, describe their visual layout, components, UX elements, and implied functionality with precision.`,
+    `3. ENTITY & DEPENDENCY EXTRACTION: Catalog all core entities, external libraries, runtime dependencies, and potential technical bottlenecks.`,
+    `4. SITUATIONAL READINESS & RECOMMENDED ACTIONS:`,
+    `   - Summarize the exact current state.`,
+    `   - Outline concrete, executable implementation phases or next steps so the user can immediately build or refine upon this foundation.`,
+    ``,
+    `Provide a clean, highly structured, technical report with Markdown headers, bullet points, and code/table references where appropriate.`
+  ];
+
+  const allAttachments = options.attachedFiles && options.attachedFiles.length > 0 
+    ? options.attachedFiles 
+    : (options.attachedFile ? [options.attachedFile] : []);
+
+  if (allAttachments.length > 0) {
+    parts.push(``, `=== ATTACHED MULTI-MODAL ASSETS (${allAttachments.length} ITEMS) ===`);
+    allAttachments.forEach((file, idx) => {
+      parts.push(
+        `--- Attachment [${idx + 1}/${allAttachments.length}]: "${file.name}" (Type: ${file.type}) ---`
+      );
+    });
+  }
+
+  if (options.virtualFiles && options.virtualFiles.length > 0) {
+    parts.push(``, `=== VIRTUAL WORKSPACE PROJECT FILES (${options.virtualFiles.length} FILES) ===`);
+    options.virtualFiles.forEach((file, idx) => {
+      parts.push(
+        `--- File [${idx + 1}/${options.virtualFiles!.length}]: ${file.name} (${file.language}) ---`,
+        file.content.length > 2500 ? file.content.substring(0, 2500) + '\n... [truncated for brevity]' : file.content,
+        `----------------------------------------`
+      );
+    });
+  }
+
+  return parts.join('\n');
 }
 
 export default function App() {
@@ -142,12 +282,127 @@ function AppContent() {
   const [crtEnabled, setCrtEnabled] = useState(true);
   const [activeTab, setActiveTab] = useState<'chats' | 'project'>('chats');
   const [virtualFiles, setVirtualFiles] = useState<{ name: string, content: string, language: string }[]>([]);
-  const [attachedFile, setAttachedFile] = useState<{ name: string, type: string, data: string } | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedItem[]>([]);
+  const [isMultiItemModalOpen, setIsMultiItemModalOpen] = useState(false);
+  const attachedFile = attachedFiles[0] || null;
+  const setAttachedFile = (file: { name: string, type: string, data: string } | null) => {
+    if (!file) {
+      setAttachedFiles([]);
+    } else {
+      setAttachedFiles([{
+        id: 'att_' + Date.now(),
+        name: file.name,
+        type: file.type,
+        data: file.data
+      }]);
+    }
+  };
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [mentionState, setMentionState] = useState<{
+    isOpen: boolean;
+    query: string;
+    selectedIndex: number;
+  }>({
+    isOpen: false,
+    query: '',
+    selectedIndex: 0,
+  });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  const filteredMentionSessions = sessions.filter(s => 
+    s.title.toLowerCase().includes(mentionState.query.toLowerCase())
+  );
+
+  const [customCommands, setCustomCommands] = useState<CustomCommand[]>(() => loadStoredCommands());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'system' | 'commands'>('system');
+  const [slashCommandState, setSlashCommandState] = useState<{
+    isOpen: boolean;
+    query: string;
+    selectedIndex: number;
+  }>({
+    isOpen: false,
+    query: '',
+    selectedIndex: 0,
+  });
+
+  const handleSaveCustomCommands = (newCommands: CustomCommand[]) => {
+    setCustomCommands(newCommands);
+    saveStoredCommands(newCommands);
+  };
+
+  const allAvailableCommands = [
+    { name: '/init', description: 'Deep multi-modal audit of attachments & resources', prompt: '\\init', isBuiltIn: true },
+    { name: '/export', description: 'Export current session chat history as Markdown', prompt: 'export', isBuiltIn: true },
+    { name: '/clear', description: 'Purge local conversation buffer', prompt: 'clear', isBuiltIn: true },
+    ...customCommands
+  ];
+
+  const filteredSlashCommands = allAvailableCommands.filter(c => 
+    c.name.toLowerCase().includes(slashCommandState.query.toLowerCase()) ||
+    c.description.toLowerCase().includes(slashCommandState.query.toLowerCase())
+  );
+
+  const insertSlashCommand = (cmd: { name: string; prompt?: string }) => {
+    const cursor = textareaRef.current?.selectionStart ?? input.length;
+    const textBeforeCursor = input.substring(0, cursor);
+    const textAfterCursor = input.substring(cursor);
+    const match = /(?:^|\s)([\/\\][a-zA-Z0-9_\-]*)$/.exec(textBeforeCursor);
+
+    let newInput = '';
+    let newCursorPos = 0;
+
+    if (match) {
+      const matchIndex = match.index + (match[0].startsWith(' ') ? 1 : 0);
+      newInput = textBeforeCursor.substring(0, matchIndex) + `${cmd.name} ` + textAfterCursor;
+      newCursorPos = matchIndex + cmd.name.length + 1;
+    } else {
+      newInput = `${input}${input && !input.endsWith(' ') ? ' ' : ''}${cmd.name} `;
+      newCursorPos = newInput.length;
+    }
+
+    setInput(newInput);
+    setSlashCommandState({ isOpen: false, query: '', selectedIndex: 0 });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+    toast.success(`Command selected: ${cmd.name}`);
+  };
+
+  const insertMention = (session: ChatSession) => {
+    const cursor = textareaRef.current?.selectionStart ?? input.length;
+    const textBeforeCursor = input.substring(0, cursor);
+    const textAfterCursor = input.substring(cursor);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+    
+    const titleToInsert = session.title.includes(' ') ? `@"${session.title}"` : `@${session.title}`;
+    let newInput = '';
+    let newCursorPos = 0;
+    
+    if (atIndex !== -1) {
+      newInput = textBeforeCursor.substring(0, atIndex) + `${titleToInsert} ` + textAfterCursor;
+      newCursorPos = atIndex + titleToInsert.length + 1;
+    } else {
+      newInput = `${input}${input && !input.endsWith(' ') ? ' ' : ''}${titleToInsert} `;
+      newCursorPos = newInput.length;
+    }
+
+    setInput(newInput);
+    setMentionState({ isOpen: false, query: '', selectedIndex: 0 });
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+    toast.success(`Linked context: @${session.title}`);
+  };
   const { 
     setTheme, setAccentColor, accentColor, 
     user, profile, loading, 
@@ -337,156 +592,76 @@ function AppContent() {
     }
   };
 
-  const processFile = (file: File) => {
-    if (!file) return;
+  const processFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
 
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const rawDataUrl = event.target?.result as string;
-        if (!rawDataUrl) return;
-
-        const img = new window.Image();
-        img.onload = () => {
-          try {
-            const maxDim = 1600;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > maxDim || height > maxDim) {
-              if (width > height) {
-                height = Math.round((height * maxDim) / width);
-                width = maxDim;
-              } else {
-                width = Math.round((width * maxDim) / height);
-                height = maxDim;
-              }
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              const outputMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-              const optimizedDataUrl = canvas.toDataURL(outputMime, 0.85);
-              const pureBase64 = optimizedDataUrl.split(',')[1] || optimizedDataUrl;
-              
-              const fileName = file.name && file.name !== 'image.png' && file.name !== 'blob'
-                ? file.name
-                : `pasted_image_${Date.now()}.${outputMime.split('/')[1] || 'jpg'}`;
-
-              setAttachedFile({
-                name: fileName,
-                type: outputMime,
-                data: pureBase64
-              });
-              toast.success(`Image attached: ${fileName}`);
-              return;
-            }
-          } catch (canvasErr) {
-            console.warn("Canvas optimization fallback:", canvasErr);
-          }
-
-          // Fallback if canvas conversion fails
-          const pureBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
-          const mimeType = file.type || 'image/jpeg';
-          const fileName = file.name || `image_${Date.now()}.jpg`;
-          setAttachedFile({
-            name: fileName,
-            type: mimeType,
-            data: pureBase64
-          });
-          toast.success(`Image attached: ${fileName}`);
-        };
-
-        img.onerror = () => {
-          const pureBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
-          setAttachedFile({
-            name: file.name || `image_${Date.now()}.jpg`,
-            type: file.type || 'image/jpeg',
-            data: pureBase64
-          });
-          toast.success(`Image attached: ${file.name || 'image'}`);
-        };
-
-        img.src = rawDataUrl;
-      };
-      reader.readAsDataURL(file);
-      return;
+    const toastId = toast.loading(`Processing ${fileArray.length} item${fileArray.length > 1 ? 's' : ''}...`);
+    try {
+      const newItems: AttachedItem[] = [];
+      for (const file of fileArray) {
+        const item = await readFileAsAttachedItem(file);
+        newItems.push(item);
+      }
+      setAttachedFiles(prev => [...prev, ...newItems]);
+      toast.success(`Attached ${newItems.length} item${newItems.length > 1 ? 's' : ''} to prompt box`, { id: toastId });
+    } catch (err: any) {
+      toast.error('Failed to attach files: ' + (err?.message || 'Unknown error'), { id: toastId });
     }
+  };
 
-    // For non-image files
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Data = event.target?.result as string;
-      if (!base64Data) return;
-      const pureBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-      setAttachedFile({
-        name: file.name,
-        type: file.type || 'application/octet-stream',
-        data: pureBase64
-      });
-      toast.success(`Attached file: ${file.name}`);
-    };
-    reader.readAsDataURL(file);
+  const processFile = async (file: File) => {
+    if (!file) return;
+    await processFiles([file]);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
     }
     if (e.target) {
       e.target.value = '';
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     const files = e.clipboardData?.files;
-    let fileFound = false;
+    const collectedFiles: File[] = [];
 
-    // Check direct clipboard files
+    // Collect all direct files
     if (files && files.length > 0) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (file) {
-          processFile(file);
-          fileFound = true;
-          break;
-        }
+        if (file) collectedFiles.push(file);
       }
     }
 
-    // Check clipboard items for image/file data
-    if (!fileFound && items) {
+    // Collect all items of kind 'file'
+    if (items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.kind === 'file') {
           const file = item.getAsFile();
-          if (file) {
-            processFile(file);
-            fileFound = true;
-            break;
+          if (file && !collectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+            collectedFiles.push(file);
           }
         }
       }
     }
 
-    if (fileFound) {
+    if (collectedFiles.length > 0) {
       const text = e.clipboardData.getData('text/plain');
-      // If only an image was in clipboard, prevent pasting raw junk
       if (!text || text.trim() === '') {
         e.preventDefault();
       }
+      await processFiles(collectedFiles);
     }
   };
 
   // Global paste handler so user can press Ctrl+V anywhere in the application
   useEffect(() => {
-    const handleGlobalPaste = (e: ClipboardEvent) => {
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
       const activeEl = document.activeElement;
       // If focused inside a different search or rename modal input, skip
       if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id !== 'chat-user-input') {
@@ -494,30 +669,30 @@ function AppContent() {
       }
       const items = e.clipboardData?.items;
       const files = e.clipboardData?.files;
-      let fileFound = false;
+      const collectedFiles: File[] = [];
 
       if (files && files.length > 0) {
         for (let i = 0; i < files.length; i++) {
-          if (files[i]) {
-            processFile(files[i]);
-            fileFound = true;
-            break;
-          }
+          const file = files[i];
+          if (file) collectedFiles.push(file);
         }
       }
 
-      if (!fileFound && items) {
+      if (items && items.length > 0) {
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
           if (item.kind === 'file') {
             const file = item.getAsFile();
-            if (file) {
-              processFile(file);
-              fileFound = true;
-              break;
+            if (file && !collectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+              collectedFiles.push(file);
             }
           }
         }
+      }
+
+      if (collectedFiles.length > 0) {
+        e.preventDefault();
+        await processFiles(collectedFiles);
       }
     };
 
@@ -537,13 +712,13 @@ function AppContent() {
     setIsDraggingOver(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      processFile(files[0]);
+      await processFiles(files);
     }
   };
 
@@ -598,18 +773,52 @@ function AppContent() {
     if (isProcessing) return;
     
     const trimmedCommand = (command || '').trim();
-    if (!trimmedCommand && !attachedFile) {
+    if (!trimmedCommand && attachedFiles.length === 0) {
       return;
     }
 
-    const effectiveCommand = trimmedCommand || (attachedFile?.type?.startsWith('image/') 
-      ? "Please analyze and explain this attached image." 
-      : "Please analyze this attached file.");
+    const effectiveCommand = trimmedCommand || (attachedFiles.length > 0 
+      ? (attachedFiles.length === 1 
+          ? (attachedFiles[0].type.startsWith('image/') 
+              ? "Please analyze and explain this attached image." 
+              : "Please analyze this attached file.")
+          : `Please analyze and examine these ${attachedFiles.length} attached items in detail.`)
+      : "");
+
+    // Check if user is creating a custom command directly from the prompt area:
+    // e.g. /createcommand /eli5 Explain in simple English like I am 5
+    const creation = parseCommandCreation(effectiveCommand);
+    if (creation) {
+      const newCmd: CustomCommand = {
+        id: 'cmd_' + Date.now(),
+        name: creation.name,
+        description: creation.description || (creation.prompt.length > 50 ? creation.prompt.substring(0, 50) + '...' : creation.prompt),
+        prompt: creation.prompt,
+        createdAt: new Date().toISOString()
+      };
+      const updated = [newCmd, ...customCommands.filter(c => c.name.toLowerCase() !== newCmd.name.toLowerCase())];
+      handleSaveCustomCommands(updated);
+      toast.success(`Custom command "${newCmd.name}" registered!`);
+
+      const ackMessage: Message = {
+        id: Math.random().toString(36).substring(7),
+        command: effectiveCommand,
+        response: `### ⚡ Custom Command Activated: \`${newCmd.name}\`\n\n**Directive (Simple English):**\n> "${newCmd.prompt}"\n\n**Quick Ways to Use It:**\n- In the prompt area: type \`${newCmd.name} [your input, code, or context]\`\n- Click the **\`/commands\`** pill below the prompt to pick it from the list\n- Open **Control Center > Custom Commands** in settings to edit, test, or fine-tune\n\n*The neural engine has memorized this directive and it is active immediately.*`,
+        timestamp: new Date(),
+        isStreaming: false
+      };
+      setMessages(prev => [...prev, ackMessage]);
+      setInput('');
+      return;
+    }
 
     if (!sessionId && user) {
        await startNewSession(effectiveCommand);
        return;
     }
+
+    const currentAttachments = [...attachedFiles];
+    setAttachedFiles([]); // Clear attached items after dispatch
 
     const newMessageId = Math.random().toString(36).substring(7);
     const userMessage: Message = {
@@ -618,15 +827,79 @@ function AppContent() {
       response: '',
       timestamp: new Date(),
       isStreaming: true,
+      attachments: currentAttachments,
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
     setInput('');
-    const currentAttachment = attachedFile;
-    setAttachedFile(null); // Clear synaptic link after dispatch
 
     try {
+      // 1. Check if invoking a registered custom command
+      const customMatch = findMatchingCustomCommand(effectiveCommand, customCommands);
+      let customCommandDirective = '';
+      if (customMatch) {
+        customCommandDirective = `[CUSTOM USER COMMAND ACTIVATED: "${customMatch.command.name}"]\n` +
+          `Directive: ${customMatch.command.prompt}\n\n` +
+          `[USER INPUT / CONTENT]:\n${customMatch.rest || '(Apply directive to current attachments and context)'}`;
+        toast.info(`Executing custom command ${customMatch.command.name}...`);
+      }
+
+      // 2. Resolve Linked Chats (@...)
+      const linked = extractLinkedSessions(effectiveCommand, sessions);
+      let linkedContextText = '';
+      
+      if (linked.length > 0) {
+        toast.info(`Retrieving context from ${linked.length} linked chat(s)...`);
+        for (const sess of linked) {
+          try {
+            if (user) {
+              const snap = await getDocs(
+                query(
+                  collection(db, 'users', user.uid, 'sessions', sess.id, 'messages'),
+                  orderBy('timestamp', 'asc'),
+                  limit(30)
+                )
+              );
+              const historyText = snap.docs.map(d => {
+                const data = d.data();
+                return `${data.role === 'user' ? 'User' : 'AI Assistant'}: ${data.text}`;
+              }).join('\n\n');
+
+              if (historyText) {
+                linkedContextText += `\n[LINKED CONVERSATION RESOURCE: @"${sess.title}" (Mode: ${sess.mode}, Session ID: ${sess.id})]\n${historyText}\n[END OF LINKED CONVERSATION @"${sess.title}"]\n`;
+              }
+            }
+          } catch (linkErr) {
+            console.warn("Failed fetching linked conversation:", linkErr);
+          }
+        }
+      }
+
+      // 3. Check for \init or /init command
+      const isInitCommand = /^\s*(\\|\/)init\b/i.test(effectiveCommand) || effectiveCommand.includes('\\init') || effectiveCommand.includes('/init');
+      let initDirectiveText = '';
+      if (isInitCommand) {
+        initDirectiveText = buildInitDirective({
+          attachedFiles: currentAttachments,
+          virtualFiles: virtualFiles,
+          linkedSessions: linked
+        });
+        toast.success("Executing \\init Multi-Modal Deep Analysis Protocol...");
+      }
+
+      // 4. Construct the enriched prompt for the model
+      let aiPrompt = effectiveCommand;
+      if (customCommandDirective) {
+        aiPrompt = `${customCommandDirective}\n\n[ORIGINAL INVOCATION]:\n${aiPrompt}`;
+      }
+      if (linkedContextText) {
+        aiPrompt = `${linkedContextText}\n\n[USER QUERY WITH REFERENCED CONTEXT ABOVE]:\n${aiPrompt}`;
+      }
+      if (initDirectiveText) {
+        aiPrompt = `${initDirectiveText}\n\n[USER INVOCATION]:\n${aiPrompt}`;
+      }
+
       // Save User Message to Firestore in the background without blocking stream start
       if (user && sessionId) {
         addDoc(collection(db, 'users', user.uid, 'sessions', sessionId, 'messages'), {
@@ -642,7 +915,7 @@ function AppContent() {
       ]).flat();
 
       let fullResponse = '';
-      const stream = streamChat(effectiveCommand, history, chatMode, currentAttachment);
+      const stream = streamChat(aiPrompt, history, chatMode, currentAttachments);
 
       for await (const delta of stream) {
         fullResponse += delta;
@@ -705,6 +978,10 @@ function AppContent() {
         e.preventDefault();
         setIsCommandPaletteOpen(true);
       }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+        e.preventDefault();
+        setIsMultiItemModalOpen(true);
+      }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
@@ -752,7 +1029,114 @@ function AppContent() {
       category: 'Account', 
       action: () => setIsAuthDialogOpen(true) 
     },
+    { 
+      id: 'export-markdown', 
+      label: 'Export Current Session (Markdown)', 
+      icon: <FileDown className="w-4 h-4" />, 
+      category: 'System', 
+      action: () => handleExportMarkdown() 
+    },
+    { 
+      id: 'init-protocol', 
+      label: '\\init Multi-Modal Deep Analysis Protocol', 
+      icon: <Zap className="w-4 h-4 text-amber-400" />, 
+      category: 'Intelligence', 
+      action: () => {
+        setInput(prev => prev.trim() ? prev + ' \\init' : '\\init ');
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      } 
+    },
+    { 
+      id: 'custom-commands-studio', 
+      label: 'Custom Commands Studio (Create in Simple English)', 
+      icon: <Terminal className="w-4 h-4 text-theme-accent" />, 
+      category: 'Intelligence', 
+      action: () => {
+        setActiveSettingsTab('commands');
+        setIsSettingsOpen(true);
+      } 
+    },
+    { 
+      id: 'control-center-settings', 
+      label: 'Control Center / System Configuration', 
+      icon: <Settings className="w-4 h-4" />, 
+      category: 'System', 
+      action: () => {
+        setActiveSettingsTab('system');
+        setIsSettingsOpen(true);
+      } 
+    },
+    { 
+      id: 'link-chat-mention', 
+      label: 'Link Previous Chat Session (@)', 
+      icon: <AtSign className="w-4 h-4 text-theme-accent" />, 
+      category: 'Intelligence', 
+      action: () => {
+        setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' @' : '@'));
+        setMentionState({ isOpen: true, query: '', selectedIndex: 0 });
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      } 
+    },
+    { 
+      id: 'multi-item-add', 
+      label: 'Add / Paste Multiple Items (Files, Images, Snippets, URLs)', 
+      icon: <Layers className="w-4 h-4 text-theme-accent" />, 
+      shortcut: '⌘+SHIFT+U',
+      category: 'Attachments', 
+      action: () => setIsMultiItemModalOpen(true) 
+    },
   ];
+
+  const handleExportMarkdown = () => {
+    if (messages.length === 0) {
+      toast.error("No messages in the current session to export.");
+      return;
+    }
+
+    const currentSession = sessions.find(s => s.id === currentSessionId);
+    const sessionTitle = currentSession?.title || 'Worp AI Conversation';
+    const timestampStr = format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+    const safeSlug = sessionTitle
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .substring(0, 40) || 'chat-history';
+
+    let markdown = `# ${sessionTitle}\n\n`;
+    markdown += `> **Export Date:** ${timestampStr}  \n`;
+    markdown += `> **Neural Mode:** ${chatMode.toUpperCase()}  \n`;
+    markdown += `> **Total Exchanges:** ${messages.length}  \n\n`;
+    markdown += `---\n\n`;
+
+    messages.forEach((msg, idx) => {
+      const msgTime = format(msg.timestamp || new Date(), 'yyyy-MM-dd HH:mm:ss');
+      const author = profile?.displayName || user?.displayName || 'User';
+      markdown += `### 👤 ${author} (${msgTime})\n\n`;
+      markdown += `${msg.command}\n\n`;
+      markdown += `### 🤖 Worp AI\n\n`;
+      markdown += `${msg.response || '*(No response)*'}\n\n`;
+      if (idx < messages.length - 1) {
+        markdown += `---\n\n`;
+      }
+    });
+
+    try {
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${safeSlug}-${format(new Date(), 'yyyyMMdd-HHmmss')}.md`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
+      toast.success("Chat history exported as Markdown file!");
+    } catch (err) {
+      console.error("Markdown export failed:", err);
+      toast.error("Failed to export chat history.");
+    }
+  };
 
   const handleShare = async () => {
     if (!user || !currentSessionId) return;
@@ -1056,114 +1440,180 @@ function AppContent() {
                 </button>
               )}
               
-              <Dialog>
+              <button 
+                onClick={() => {
+                  setActiveSettingsTab('commands');
+                  setIsSettingsOpen(true);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl transition-all group mb-1 ${friendlyMode ? 'bg-white/5 text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}
+                title="Create and manage custom commands in simple English"
+              >
+                <Terminal className="w-4 h-4 text-theme-accent group-hover:scale-110 transition-transform" />
+                <span>Custom Commands</span>
+                <span className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 group-hover:text-theme-accent font-bold">
+                  {customCommands.length}
+                </span>
+              </button>
+
+              <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
                 <DialogTrigger render={
-                  <button className={`flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-xl transition-all group ${friendlyMode ? 'bg-white/5 text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}>
+                  <button 
+                    onClick={() => {
+                      setActiveSettingsTab('system');
+                      setIsSettingsOpen(true);
+                    }}
+                    className={`flex w-full items-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-xl transition-all group ${friendlyMode ? 'bg-white/5 text-zinc-400 hover:text-zinc-200' : 'text-zinc-500 hover:text-white hover:bg-zinc-900'}`}
+                  >
                     <Settings className="w-4 h-4 group-hover:rotate-45 transition-transform" />
                     <span>Control Center</span>
                     <ChevronRight className="ml-auto w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
                   </button>
                 } />
-                <DialogContent className="bg-zinc-950 border-zinc-900 text-zinc-200 sm:max-w-[425px] overflow-hidden p-0">
+                <DialogContent className={`bg-zinc-950 border-zinc-900 text-zinc-200 overflow-hidden p-0 transition-all duration-300 ${activeSettingsTab === 'commands' ? 'sm:max-w-2xl max-w-2xl' : 'sm:max-w-[460px]'}`}>
                   {/* Glass background effect */}
                   <div className="absolute inset-0 bg-theme-accent-glow/5 backdrop-blur-3xl pointer-events-none" />
                   
-                  <div className="">
+                  <div className="relative z-10 flex flex-col h-full max-h-[85vh]">
                     <DialogHeader className="relative pb-2 px-6 pt-6">
                       <DialogTitle className="text-xl font-bold tracking-tight">System Configuration</DialogTitle>
                       <DialogDescription className="text-zinc-500">
-                        Personalize your Worp AI experience. All changes are cloud-synced.
+                        Personalize your Worp AI experience, theme, and custom commands.
                       </DialogDescription>
+
+                      {/* Tab Switcher */}
+                      <div className="flex items-center gap-2 pt-3 border-b border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsTab('system')}
+                          className={`pb-2.5 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all ${
+                            activeSettingsTab === 'system'
+                              ? 'border-theme-accent text-white'
+                              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>System & Appearance</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsTab('commands')}
+                          className={`pb-2.5 px-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-all ${
+                            activeSettingsTab === 'commands'
+                              ? 'border-theme-accent text-white'
+                              : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <Terminal className="w-3.5 h-3.5 text-theme-accent" />
+                          <span>Custom Commands</span>
+                          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-theme-accent/20 text-theme-accent border border-theme-accent/30 font-bold">
+                            {customCommands.length}
+                          </span>
+                        </button>
+                      </div>
                     </DialogHeader>
                     
-                    <ScrollArea className="h-[450px] w-full rounded-md border-none">
-                      <div className="grid gap-6 py-4 relative px-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                             <div className="space-y-0.5">
-                                <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-widest">
-                                   <Monitor className="w-3.5 h-3.5" /> Normal Mode
-                                </h4>
-                                <p className="text-[10px] text-zinc-600">Friendlier UI with softer edges and icons.</p>
-                             </div>
-                             <Switch 
-                              checked={friendlyMode} 
-                              onCheckedChange={setFriendlyMode}
-                              className="data-[state=checked]:bg-theme-accent" 
-                             />
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                             <div className="space-y-0.5">
-                                <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-widest">
-                                   {isDarkMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />} Dark Mode
-                                </h4>
-                                <p className="text-[10px] text-zinc-600">Toggle between dark and light thematic state.</p>
-                             </div>
-                             <Switch 
-                              checked={isDarkMode} 
-                              onCheckedChange={setIsDarkMode}
-                              className="data-[state=checked]:bg-theme-accent" 
-                             />
-                          </div>
-                        </div>
-
-                        <Separator className="bg-zinc-900" />
-
-                        <div className="space-y-4">
-                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                            <Layout className="w-3.5 h-3.5" /> Appearance
-                          </h4>
-                          <div className="grid grid-cols-3 gap-2">
-                            {themes.filter(t => t.id !== 'custom').map((t) => (
-                              <button
-                                key={t.id}
-                                onClick={() => setTheme(t.id)}
-                                className={`group relative aspect-square rounded-xl border transition-all ${profile?.theme === t.id ? 'border-theme-accent bg-theme-accent-glow' : 'border-zinc-800 bg-zinc-900/50'} p-1.5 hover:scale-[1.02]`}
-                              >
-                                <div className={`w-full h-full rounded-lg ${t.color} opacity-30 group-hover:opacity-100 transition-opacity flex items-center justify-center`}>
-                                   {profile?.theme === t.id && <Zap className="w-4 h-4 text-white animate-pulse" />}
-                                </div>
-                                <span className="absolute bottom-1.5 left-1.5 text-[7px] font-bold text-white/50 uppercase tracking-tighter">{t.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                            <Palette className="w-3.5 h-3.5" /> Precision Color
-                          </h4>
-                          <div className="flex items-center gap-6 p-4 rounded-xl shadow-inner border border-zinc-900 bg-zinc-950/50">
-                            <div className="relative shrink-0">
-                              <input 
-                                type="color" 
-                                value={rgbToHex(accentColor)}
-                                onChange={handleHexChange}
-                                className="w-12 h-12 rounded-xl cursor-not-allowed hidden lg:block"
-                                id="customColor"
-                              />
-                              <label htmlFor="customColor" className="w-12 h-12 rounded-xl cursor-pointer bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-800 transition-colors shadow-xl overflow-hidden">
-                                 <div className="w-full h-full" style={{ backgroundColor: `rgb(${accentColor})` }} />
-                              </label>
-                              <input 
-                                type="color" 
-                                value={rgbToHex(accentColor)}
-                                onChange={handleHexChange}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
-                              />
+                    <ScrollArea className="flex-1 w-full max-h-[580px] rounded-md border-none">
+                      {activeSettingsTab === 'system' ? (
+                        <div className="grid gap-6 py-4 relative px-6">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                               <div className="space-y-0.5">
+                                  <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-widest">
+                                     <Monitor className="w-3.5 h-3.5" /> Normal Mode
+                                  </h4>
+                                  <p className="text-[10px] text-zinc-600">Friendlier UI with softer edges and icons.</p>
+                               </div>
+                               <Switch 
+                                checked={friendlyMode} 
+                                onCheckedChange={setFriendlyMode}
+                                className="data-[state=checked]:bg-theme-accent" 
+                               />
                             </div>
-                            <div className="flex-1">
-                              <p className="text-[10px] uppercase font-bold text-zinc-500 mb-1">ACCENT_RGB</p>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono text-theme-accent font-bold tracking-tighter">
-                                  {accentColor}
-                                </span>
+
+                            <div className="flex items-center justify-between">
+                               <div className="space-y-0.5">
+                                  <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-widest">
+                                     {isDarkMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />} Dark Mode
+                                  </h4>
+                                  <p className="text-[10px] text-zinc-600">Toggle between dark and light thematic state.</p>
+                               </div>
+                               <Switch 
+                                checked={isDarkMode} 
+                                onCheckedChange={setIsDarkMode}
+                                className="data-[state=checked]:bg-theme-accent" 
+                               />
+                            </div>
+                          </div>
+
+                          <Separator className="bg-zinc-900" />
+
+                          <div className="space-y-4">
+                            <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                              <Layout className="w-3.5 h-3.5" /> Appearance
+                            </h4>
+                            <div className="grid grid-cols-3 gap-2">
+                              {themes.filter(t => t.id !== 'custom').map((t) => (
+                                <button
+                                  key={t.id}
+                                  onClick={() => setTheme(t.id)}
+                                  className={`group relative aspect-square rounded-xl border transition-all ${profile?.theme === t.id ? 'border-theme-accent bg-theme-accent-glow' : 'border-zinc-800 bg-zinc-900/50'} p-1.5 hover:scale-[1.02]`}
+                                >
+                                  <div className={`w-full h-full rounded-lg ${t.color} opacity-30 group-hover:opacity-100 transition-opacity flex items-center justify-center`}>
+                                     {profile?.theme === t.id && <Zap className="w-4 h-4 text-white animate-pulse" />}
+                                  </div>
+                                  <span className="absolute bottom-1.5 left-1.5 text-[7px] font-bold text-white/50 uppercase tracking-tighter">{t.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                              <Palette className="w-3.5 h-3.5" /> Precision Color
+                            </h4>
+                            <div className="flex items-center gap-6 p-4 rounded-xl shadow-inner border border-zinc-900 bg-zinc-950/50">
+                              <div className="relative shrink-0">
+                                <input 
+                                  type="color" 
+                                  value={rgbToHex(accentColor)}
+                                  onChange={handleHexChange}
+                                  className="w-12 h-12 rounded-xl cursor-not-allowed hidden lg:block"
+                                  id="customColor"
+                                />
+                                <label htmlFor="customColor" className="w-12 h-12 rounded-xl cursor-pointer bg-zinc-900 border border-zinc-800 flex items-center justify-center hover:bg-zinc-800 transition-colors shadow-xl overflow-hidden">
+                                   <div className="w-full h-full" style={{ backgroundColor: `rgb(${accentColor})` }} />
+                                </label>
+                                <input 
+                                  type="color" 
+                                  value={rgbToHex(accentColor)}
+                                  onChange={handleHexChange}
+                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-[10px] uppercase font-bold text-zinc-500 mb-1">ACCENT_RGB</p>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-mono text-theme-accent font-bold tracking-tighter">
+                                    {accentColor}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="py-4 px-6 relative">
+                          <CustomCommandsManager 
+                            commands={customCommands}
+                            onSaveCommands={handleSaveCustomCommands}
+                            onSelectCommand={(cmd) => {
+                              insertSlashCommand(cmd);
+                              setIsSettingsOpen(false);
+                            }}
+                            isDarkMode={isDarkMode}
+                          />
+                        </div>
+                      )}
                     </ScrollArea>
                   </div>
                 </DialogContent>
@@ -1218,6 +1668,22 @@ function AppContent() {
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     Share
+                  </button>
+                )}
+
+                {messages.length > 0 && (
+                  <button 
+                    onClick={handleExportMarkdown}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-[11px] font-bold uppercase tracking-widest ${
+                      isDarkMode 
+                        ? 'text-zinc-300 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/60 shadow-sm' 
+                        : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-300 shadow-sm'
+                    }`}
+                    title="Export current session's chat history as Markdown (.md)"
+                    aria-label="Export chat history as Markdown"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-theme-accent" />
+                    <span>Export MD</span>
                   </button>
                 )}
 
@@ -1336,6 +1802,7 @@ function AppContent() {
                                 userName={profile?.displayName}
                                 lightLogo="/favicon.ico"
                                 darkLogo={logo3}
+                                attachments={m.attachments}
                               />
                             </motion.div>
                           ))}
@@ -1387,6 +1854,21 @@ function AppContent() {
                   >
                     <RotateCcw className="w-3 h-3" />
                   </motion.button>
+
+                  {attachedFile && (
+                    <motion.button
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      onClick={() => {
+                        setInput('\\init Perform exhaustive structural analysis of this attachment');
+                        handleSendCommand('\\init Perform exhaustive structural analysis of this attachment');
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm animate-pulse hover:bg-amber-500/30 transition-all ml-1"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>\init: Deep Analyze Attachment</span>
+                    </motion.button>
+                  )}
                 </motion.div>
 
                 
@@ -1405,6 +1887,163 @@ function AppContent() {
                         : 'bg-white/80 border-zinc-200 focus-within:border-zinc-300'
                   }`}
                 >
+                  {/* Floating Mention Autocomplete for Chat Linking */}
+                  <AnimatePresence>
+                    {mentionState.isOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                        className={`absolute bottom-full left-0 right-0 mb-3 rounded-2xl border shadow-2xl p-2 z-50 backdrop-blur-2xl max-h-64 overflow-y-auto custom-scrollbar ${
+                          isDarkMode 
+                            ? 'bg-zinc-950/95 border-zinc-800 text-zinc-200' 
+                            : 'bg-white/95 border-zinc-300 text-zinc-900 shadow-xl'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between px-3 py-1.5 mb-1.5 border-b border-zinc-800/40">
+                          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-theme-accent uppercase tracking-wider">
+                            <AtSign className="w-3.5 h-3.5" />
+                            Link Previous Chat Context (@...)
+                          </div>
+                          <span className="text-[10px] text-zinc-500 font-mono">Use ↑↓ keys & Enter</span>
+                        </div>
+                        {filteredMentionSessions.length === 0 ? (
+                          <div className="py-4 text-center text-xs text-zinc-500 font-mono">
+                            {sessions.length === 0 ? "No saved sessions yet. Start a chat to link history!" : "No matching chat sessions found"}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {filteredMentionSessions.map((s, idx) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => insertMention(s)}
+                                onMouseEnter={() => setMentionState(prev => ({ ...prev, selectedIndex: idx }))}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-all ${
+                                  idx === mentionState.selectedIndex
+                                    ? 'bg-theme-accent text-zinc-950 font-bold shadow-md scale-[1.01]'
+                                    : isDarkMode
+                                      ? 'hover:bg-zinc-900 text-zinc-300'
+                                      : 'hover:bg-zinc-100 text-zinc-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className={`p-1.5 rounded-lg shrink-0 ${
+                                    idx === mentionState.selectedIndex 
+                                      ? 'bg-black/20 text-zinc-950' 
+                                      : isDarkMode 
+                                        ? 'bg-zinc-900 text-theme-accent' 
+                                        : 'bg-zinc-100 text-theme-accent'
+                                  }`}>
+                                    <Link2 className="w-3.5 h-3.5" />
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="truncate font-semibold text-[13px]">@{s.title}</span>
+                                    <span className={`text-[10px] font-mono truncate ${idx === mentionState.selectedIndex ? 'text-zinc-800' : 'text-zinc-500'}`}>
+                                      Mode: {s.mode.toUpperCase()}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded ${
+                                  idx === mentionState.selectedIndex 
+                                    ? 'bg-black/20 text-zinc-950 font-bold' 
+                                    : isDarkMode 
+                                      ? 'bg-zinc-900 text-zinc-400' 
+                                      : 'bg-zinc-100 text-zinc-600'
+                                }`}>
+                                  Link
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Slash Command Autocomplete Popover */}
+                  <AnimatePresence>
+                    {slashCommandState.isOpen && filteredSlashCommands.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                        className={`absolute bottom-full left-0 right-0 mb-2 rounded-2xl border shadow-2xl overflow-hidden z-40 max-h-72 flex flex-col ${
+                          isDarkMode 
+                            ? 'bg-zinc-950/95 border-zinc-800 backdrop-blur-xl' 
+                            : 'bg-white/95 border-zinc-300 backdrop-blur-xl'
+                        }`}
+                      >
+                        <div className={`px-3 py-2 border-b flex items-center justify-between text-[11px] font-mono ${
+                          isDarkMode ? 'border-zinc-800 text-zinc-400 bg-zinc-900/60' : 'border-zinc-200 text-zinc-600 bg-zinc-50'
+                        }`}>
+                          <div className="flex items-center gap-1.5">
+                            <Terminal className="w-3.5 h-3.5 text-theme-accent" />
+                            <span className="font-bold uppercase tracking-wider text-theme-accent">Commands & Directives</span>
+                            <span className="text-[10px] text-zinc-500">({filteredSlashCommands.length})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSlashCommandState(prev => ({ ...prev, isOpen: false }));
+                              setActiveSettingsTab('commands');
+                              setIsSettingsOpen(true);
+                            }}
+                            className="hover:underline flex items-center gap-1 text-[10px] text-theme-accent hover:opacity-80 transition-opacity"
+                          >
+                            <Settings className="w-3 h-3" />
+                            <span>Manage in Settings</span>
+                          </button>
+                        </div>
+
+                        <div className="p-1.5 overflow-y-auto space-y-1 custom-scrollbar">
+                          {filteredSlashCommands.map((cmd, idx) => (
+                            <button
+                              key={cmd.name}
+                              type="button"
+                              onClick={() => insertSlashCommand(cmd)}
+                              onMouseEnter={() => setSlashCommandState(prev => ({ ...prev, selectedIndex: idx }))}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-all ${
+                                idx === slashCommandState.selectedIndex
+                                  ? 'bg-theme-accent text-zinc-950 font-bold shadow-md scale-[1.01]'
+                                  : isDarkMode
+                                    ? 'hover:bg-zinc-900 text-zinc-300'
+                                    : 'hover:bg-zinc-100 text-zinc-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className={`p-1.5 rounded-lg shrink-0 ${
+                                  idx === slashCommandState.selectedIndex 
+                                    ? 'bg-black/20 text-zinc-950' 
+                                    : isDarkMode 
+                                      ? 'bg-zinc-900 text-theme-accent' 
+                                      : 'bg-zinc-100 text-theme-accent'
+                                }`}>
+                                  {cmd.name === '/init' ? <Zap className="w-3.5 h-3.5 text-amber-400" /> : <Terminal className="w-3.5 h-3.5" />}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="truncate font-mono font-bold text-[13px]">{cmd.name}</span>
+                                  <span className={`text-[11px] truncate ${idx === slashCommandState.selectedIndex ? 'text-zinc-800' : 'text-zinc-500'}`}>
+                                    {cmd.description}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded ${
+                                idx === slashCommandState.selectedIndex 
+                                  ? 'bg-black/20 text-zinc-950 font-bold' 
+                                  : isDarkMode 
+                                    ? 'bg-zinc-900 text-zinc-400' 
+                                    : 'bg-zinc-100 text-zinc-600'
+                              }`}>
+                                {'isBuiltIn' in cmd && cmd.isBuiltIn ? 'System' : 'Custom'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {isDraggingOver && (
                     <div className="absolute inset-0 z-30 rounded-xl bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center border-2 border-dashed border-theme-accent text-theme-accent font-mono text-xs font-bold uppercase tracking-wider animate-pulse pointer-events-none">
                       <div className="flex items-center gap-2">
@@ -1414,37 +2053,87 @@ function AppContent() {
                     </div>
                   )}
 
-                  {attachedFile && (
-                    <div className="px-3 py-2 flex items-center justify-between border-b border-zinc-800/50 bg-zinc-900/40 rounded-t-lg">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {attachedFile.type.startsWith('image/') ? (
-                          <div className="relative w-8 h-8 rounded-md overflow-hidden border border-zinc-700 shrink-0 bg-black/40 shadow-sm">
-                            <img 
-                              src={`data:${attachedFile.type};base64,${attachedFile.data}`} 
-                              alt={attachedFile.name} 
-                              className="w-full h-full object-cover" 
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-md bg-theme-accent/10 border border-theme-accent/30 flex items-center justify-center shrink-0">
-                            <FileText className="w-4 h-4 text-theme-accent" />
-                          </div>
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-xs font-medium text-zinc-300 truncate max-w-[200px] sm:max-w-xs">{attachedFile.name}</span>
-                          <span className="text-[10px] font-mono text-theme-accent uppercase tracking-wider">
-                            {attachedFile.type.startsWith('image/') ? 'Image Attachment' : 'Document Attachment'}
+                  {attachedFiles.length > 0 && (
+                    <div className={`px-3 py-2 border-b rounded-t-lg flex flex-col gap-2 transition-all ${
+                      isDarkMode ? 'border-zinc-800/60 bg-zinc-900/60' : 'border-zinc-200 bg-zinc-50/90'
+                    }`}>
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-theme-accent uppercase flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>Attached Items</span>
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-theme-accent/20 text-theme-accent font-bold border border-theme-accent/30">
+                            {attachedFiles.length}
                           </span>
                         </div>
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => setIsMultiItemModalOpen(true)}
+                            className="text-theme-accent hover:underline flex items-center gap-1 hover:opacity-80 transition-opacity"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add / Paste More</span>
+                          </button>
+                          <span className="text-zinc-600">•</span>
+                          <button
+                            type="button"
+                            onClick={() => setAttachedFiles([])}
+                            className="text-zinc-500 hover:text-red-400 hover:underline flex items-center gap-1 transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Clear All</span>
+                          </button>
+                        </div>
                       </div>
-                      <button 
-                        id="remove-attachment-btn"
-                        onClick={() => setAttachedFile(null)}
-                        className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-red-400 transition-colors ml-2 shrink-0"
-                        title="Remove attachment"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+
+                      {/* Horizontally scrollable chips */}
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 custom-scrollbar">
+                        {attachedFiles.map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className={`flex items-center gap-2 p-1.5 pr-2 rounded-xl border text-xs shrink-0 max-w-[260px] transition-all group ${
+                              isDarkMode 
+                                ? 'bg-zinc-950/80 border-zinc-800 text-zinc-200 hover:border-zinc-700' 
+                                : 'bg-white border-zinc-200 text-zinc-800 hover:border-zinc-300'
+                            }`}
+                          >
+                            {item.type.startsWith('image/') && item.data ? (
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-zinc-700 shrink-0 bg-black/40">
+                                <img
+                                  src={`data:${item.type};base64,${item.data}`}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-theme-accent/15 border border-theme-accent/30 flex items-center justify-center text-theme-accent shrink-0">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="flex flex-col min-w-0 pr-1 text-left">
+                              <span className="text-[11px] font-medium truncate max-w-[130px]" title={item.name}>
+                                {item.name}
+                              </span>
+                              <div className="flex items-center gap-1 text-[9px] font-mono text-zinc-500">
+                                <span className="uppercase text-theme-accent font-semibold">
+                                  {getItemBadgeLabel(item)}
+                                </span>
+                                {item.size ? <span>• {formatFileSize(item.size)}</span> : null}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttachedFiles(prev => prev.filter(f => f.id !== item.id))}
+                              className="p-1 rounded-md text-zinc-500 hover:text-red-400 hover:bg-zinc-800/60 transition-colors ml-auto shrink-0"
+                              title={`Remove ${item.name}`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="flex items-start gap-2 pt-2 px-2">
@@ -1456,18 +2145,92 @@ function AppContent() {
                       id="chat-user-input"
                       ref={textareaRef}
                       rows={1}
-                      placeholder={attachedFile ? "Ask anything about this attachment..." : "Ask anything"}
+                      placeholder="Ask anything"
                       className={`bg-transparent border-none focus:outline-none focus:ring-0 text-[15px] py-2 px-1 placeholder:text-zinc-500 font-sans tracking-tight resize-none flex-1 min-h-[40px] max-h-[220px] overflow-y-auto leading-relaxed custom-scrollbar ${isDarkMode ? 'text-zinc-200' : 'text-zinc-900'}`}
                       value={input}
                       onChange={(e) => {
-                        setInput(e.target.value);
-                        // Auto-adjust height to fit content up to max-height
+                        const newVal = e.target.value;
+                        setInput(newVal);
                         e.target.style.height = 'auto';
                         e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
+
+                        const cursor = e.target.selectionStart || 0;
+                        const textBeforeCursor = newVal.substring(0, cursor);
+                        const atMatch = /@([^\s@]*)$/.exec(textBeforeCursor);
+                        const slashMatch = /(?:^|\s)([\/\\][a-zA-Z0-9_\-]*)$/.exec(textBeforeCursor);
+
+                        if (atMatch) {
+                          setMentionState({
+                            isOpen: true,
+                            query: atMatch[1],
+                            selectedIndex: 0,
+                          });
+                          setSlashCommandState(prev => ({ ...prev, isOpen: false }));
+                        } else {
+                          if (mentionState.isOpen) setMentionState(prev => ({ ...prev, isOpen: false }));
+
+                          if (slashMatch) {
+                            setSlashCommandState({
+                              isOpen: true,
+                              query: slashMatch[1].replace(/^[\/\\]/, ''),
+                              selectedIndex: 0,
+                            });
+                          } else if (slashCommandState.isOpen) {
+                            setSlashCommandState(prev => ({ ...prev, isOpen: false }));
+                          }
+                        }
                       }}
                       onKeyDown={(e) => {
+                        if (mentionState.isOpen && filteredMentionSessions.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setMentionState(prev => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % filteredMentionSessions.length }));
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setMentionState(prev => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + filteredMentionSessions.length) % filteredMentionSessions.length }));
+                            return;
+                          }
+                          if (e.key === 'Enter' || e.key === 'Tab') {
+                            e.preventDefault();
+                            insertMention(filteredMentionSessions[mentionState.selectedIndex]);
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setMentionState(prev => ({ ...prev, isOpen: false }));
+                            return;
+                          }
+                        }
+
+                        if (slashCommandState.isOpen && filteredSlashCommands.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setSlashCommandState(prev => ({ ...prev, selectedIndex: (prev.selectedIndex + 1) % filteredSlashCommands.length }));
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setSlashCommandState(prev => ({ ...prev, selectedIndex: (prev.selectedIndex - 1 + filteredSlashCommands.length) % filteredSlashCommands.length }));
+                            return;
+                          }
+                          if (e.key === 'Enter' || e.key === 'Tab') {
+                            e.preventDefault();
+                            insertSlashCommand(filteredSlashCommands[slashCommandState.selectedIndex]);
+                            return;
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setSlashCommandState(prev => ({ ...prev, isOpen: false }));
+                            return;
+                          }
+                        }
+
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
+                          setMentionState(prev => ({ ...prev, isOpen: false }));
+                          setSlashCommandState(prev => ({ ...prev, isOpen: false }));
                           handleSendCommand(input);
                           if (textareaRef.current) {
                             textareaRef.current.style.height = 'auto';
@@ -1480,6 +2243,8 @@ function AppContent() {
                       <button 
                         id="submit-command-btn"
                         onClick={() => {
+                          setMentionState(prev => ({ ...prev, isOpen: false }));
+                          setSlashCommandState(prev => ({ ...prev, isOpen: false }));
                           handleSendCommand(input);
                           if (textareaRef.current) {
                             textareaRef.current.style.height = 'auto';
@@ -1492,24 +2257,122 @@ function AppContent() {
                     </div>
                   </div>
 
-                  <div className="px-4 py-1.5 flex items-center justify-end">
-                    <div className="flex gap-1">
+                  <div className="px-3 py-1.5 flex items-center justify-between border-t border-zinc-800/30 mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        id="quick-commands-btn"
+                        type="button"
+                        onClick={() => {
+                          if (slashCommandState.isOpen) {
+                            setSlashCommandState(prev => ({ ...prev, isOpen: false }));
+                          } else {
+                            setMentionState(prev => ({ ...prev, isOpen: false }));
+                            setSlashCommandState({
+                              isOpen: true,
+                              query: '',
+                              selectedIndex: 0,
+                            });
+                            textareaRef.current?.focus();
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all ${
+                          slashCommandState.isOpen
+                            ? 'bg-theme-accent/25 text-theme-accent border border-theme-accent/40 shadow-xs'
+                            : isDarkMode 
+                              ? 'bg-zinc-900/70 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800' 
+                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 border border-zinc-300'
+                        }`}
+                        title="Browse and insert custom commands or create in Settings"
+                      >
+                        <Terminal className="w-3.5 h-3.5 text-theme-accent" />
+                        <span>/commands</span>
+                      </button>
+
+                      <button
+                        id="quick-init-btn"
+                        type="button"
+                        onClick={() => {
+                          const prefix = input.trim() ? input + ' \\init' : '\\init ';
+                          setInput(prefix);
+                          textareaRef.current?.focus();
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all ${
+                          input.includes('\\init') || input.includes('/init')
+                            ? 'bg-amber-500/25 text-amber-400 border border-amber-500/40 shadow-xs'
+                            : isDarkMode 
+                              ? 'bg-zinc-900/70 hover:bg-zinc-850 text-zinc-400 hover:text-amber-400 border border-zinc-800' 
+                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-amber-600 border border-zinc-300'
+                        }`}
+                        title="\\init: Exhaustive multi-modal structural audit of attachments, code, and resources"
+                      >
+                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                        <span>\init</span>
+                      </button>
+
+                      <button
+                        id="link-chat-btn"
+                        type="button"
+                        onClick={() => {
+                          setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' @' : '@'));
+                          setMentionState({
+                            isOpen: true,
+                            query: '',
+                            selectedIndex: 0,
+                          });
+                          textareaRef.current?.focus();
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all ${
+                          mentionState.isOpen || input.includes('@')
+                            ? 'bg-theme-accent/20 text-theme-accent border border-theme-accent/40 shadow-xs'
+                            : isDarkMode 
+                              ? 'bg-zinc-900/70 hover:bg-zinc-850 text-zinc-400 hover:text-theme-accent border border-zinc-800' 
+                              : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-theme-accent border border-zinc-300'
+                        }`}
+                        title="Link a previous chat conversation (@...)"
+                      >
+                        <AtSign className="w-3.5 h-3.5 text-theme-accent" />
+                        <span>Link @</span>
+                      </button>
+                    </div>
+
+                    <div className="flex gap-1.5 items-center">
                        <input 
                          type="file" 
                          ref={fileInputRef} 
+                         multiple
                          className="hidden" 
                          onChange={handleFileChange}
                        />
                        <button 
                          id="attach-file-btn"
+                         type="button"
                          onClick={() => fileInputRef.current?.click()}
                          className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' : 'hover:bg-zinc-100 text-zinc-500 hover:text-zinc-700'}`}
-                         title="Attach file or image (or paste Ctrl+V)"
+                         title="Attach files or images (Hold Ctrl/Shift to pick multiple, or paste Ctrl+V)"
                        >
                          <Plus className="w-4 h-4" />
                        </button>
+
+                       <button 
+                         id="multi-items-btn"
+                         type="button"
+                         onClick={() => setIsMultiItemModalOpen(true)}
+                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono transition-all ${
+                           attachedFiles.length > 0 
+                             ? 'bg-theme-accent/20 text-theme-accent border border-theme-accent/40 font-bold shadow-xs' 
+                             : isDarkMode 
+                               ? 'bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80' 
+                               : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-800 border border-zinc-300'
+                         }`}
+                         title="Add or paste multiple items (Files, Images, Snippets, URLs) - ⌘+Shift+U"
+                       >
+                         <Layers className="w-3.5 h-3.5 text-theme-accent" />
+                         <span>+ Items {attachedFiles.length > 0 ? `(${attachedFiles.length})` : ''}</span>
+                       </button>
+
                        <button 
                          id="voice-input-btn"
+                         type="button"
                          onClick={toggleListening}
                          className={`p-1.5 rounded-lg transition-all ${
                            isListening 
@@ -1529,7 +2392,21 @@ function AppContent() {
             </div>
           </main>
 
-
+          <MultiItemModal
+            isOpen={isMultiItemModalOpen}
+            onClose={() => setIsMultiItemModalOpen(false)}
+            stagedItems={attachedFiles}
+            onAddItems={(newItems) => {
+              setAttachedFiles(prev => [...prev, ...newItems]);
+            }}
+            onRemoveItem={(id) => {
+              setAttachedFiles(prev => prev.filter(f => f.id !== id));
+            }}
+            onClearAll={() => {
+              setAttachedFiles([]);
+            }}
+            isDarkMode={isDarkMode}
+          />
         </div>
       </SidebarProvider>
 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Copy, Check, Terminal, Cpu, MessageSquare, Code, Sparkles, Brain, Download, Eye } from 'lucide-react';
+import { Copy, Check, Terminal, Cpu, MessageSquare, Code, Sparkles, Brain, Download, Eye, Volume2, VolumeX, Link2, Zap, AtSign, FileText, Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -14,6 +13,7 @@ import { useTheme } from '../lib/ThemeContext';
 import { CodeRunner } from './CodeRunner';
 import { LivePreview } from './LivePreview';
 import { Logo } from './Logo';
+import { highlightCode } from '../lib/prismHighlighter';
 
 interface ChatBlockProps {
   id: string;
@@ -24,10 +24,39 @@ interface ChatBlockProps {
   userName?: string;
   lightLogo?: string;
   darkLogo?: string;
+  attachments?: Array<{ id?: string; name: string; type: string; data?: string; size?: number }>;
 }
 
-export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, timestamp, isStreaming, userName, lightLogo, darkLogo }) => {
+function cleanMarkdownForSpeech(text: string): string {
+  if (!text) return '';
+  return text
+    // Replace code blocks with brief note so it doesn't read hundreds of lines of code syntax
+    .replace(/```[\s\S]*?```/g, ' [Code snippet omitted] ')
+    // Replace inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove images
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+    // Remove headers #, ##, etc.
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold and italics
+    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1')
+    // Remove blockquotes
+    .replace(/^>\s+/gm, '')
+    // Remove unordered list bullets
+    .replace(/^[-*+]\s+/gm, '')
+    // Remove math delimiters
+    .replace(/\$\$[\s\S]*?\$\$/g, '')
+    .replace(/\$([^$]+)\$/g, '$1')
+    // Clean multiple spaces/newlines
+    .replace(/\n+/g, ' ')
+    .trim();
+}
+
+export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, timestamp, isStreaming, userName, lightLogo, darkLogo, attachments }) => {
   const [copied, setCopied] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [previewState, setPreviewState] = useState<{ isOpen: boolean; code: string; language: string }>({
     isOpen: false,
     code: '',
@@ -36,6 +65,70 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
   const { chatMode, friendlyMode, isDarkMode } = useTheme();
 
   const finalLogo = isDarkMode ? darkLogo : lightLogo;
+
+  React.useEffect(() => {
+    return () => {
+      // Cancel speech synthesis if block unmounts while speaking
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+        }
+      }
+    };
+  }, []);
+
+  const handleToggleTTS = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      toast.info("Audio playback stopped.");
+      return;
+    }
+
+    // Cancel any previous speech
+    window.speechSynthesis.cancel();
+
+    const spokenText = cleanMarkdownForSpeech(response);
+    if (!spokenText) {
+      toast.error("No text available to read.");
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(spokenText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    // Pick English voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel') || v.default)) || voices.find(v => v.lang.startsWith('en'));
+    if (englishVoice) {
+      utterance.voice = englishVoice;
+    }
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = (e) => {
+      if (e.error !== 'canceled' && e.error !== 'interrupted') {
+        console.warn("Speech synthesis error:", e);
+        toast.error("Speech playback error.");
+      }
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+    toast.success("Reading AI response aloud...");
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(response);
@@ -90,11 +183,71 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
     research: isDarkMode ? "bg-zinc-900 border-emerald-900/30" : "bg-emerald-50 border-emerald-200"
   };
 
+  const linkedMentions = Array.from(command.matchAll(/@(?:"([^"]+)"|([a-zA-Z0-9_\-\.]+))/g))
+    .map(m => m[1] || m[2])
+    .filter(Boolean);
+  const isInit = /^\s*(\\|\/)init\b/i.test(command) || command.includes('\\init') || command.includes('/init');
+  const isCmd = !isInit && /^\s*([\/\\a-zA-Z0-9_\-]+)/.test(command);
+  const customCmdName = isCmd ? /^\s*([\/\\a-zA-Z0-9_\-]+)/.exec(command)?.[1] : null;
+
   if (friendlyMode) {
     return (
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
         {/* User Bubble */}
         <div className="flex flex-col items-end">
+          {(linkedMentions.length > 0 || isInit || (customCmdName && (customCmdName.startsWith('/') || customCmdName.startsWith('\\')))) && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-1.5 justify-end">
+              {isInit && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-xs">
+                  <Zap className="w-3 h-3 text-amber-400 animate-pulse" />
+                  \INIT AUDIT
+                </span>
+              )}
+              {customCmdName && (customCmdName.startsWith('/') || customCmdName.startsWith('\\')) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-xs">
+                  <Terminal className="w-3 h-3 text-purple-400" />
+                  {customCmdName}
+                </span>
+              )}
+              {linkedMentions.map((m, i) => (
+                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-theme-accent/20 text-theme-accent border border-theme-accent/30 shadow-xs">
+                  <Link2 className="w-3 h-3" />
+                  @{m}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Render User Attachments if present */}
+          {attachments && attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 justify-end max-w-[85%]">
+              {attachments.map((att, i) => (
+                <div 
+                  key={i} 
+                  className={`flex items-center gap-2 p-1.5 rounded-xl border text-xs shadow-xs ${
+                    isDarkMode ? 'bg-zinc-900/90 border-zinc-800 text-zinc-300' : 'bg-zinc-100 border-zinc-200 text-zinc-800'
+                  }`}
+                >
+                  {att.type.startsWith('image/') && att.data ? (
+                    <img 
+                      src={`data:${att.type};base64,${att.data}`} 
+                      alt={att.name} 
+                      className="w-9 h-9 rounded-lg object-cover border border-zinc-700/60"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-theme-accent/15 border border-theme-accent/30 flex items-center justify-center text-theme-accent shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0 pr-1 text-left">
+                    <span className="text-[11px] font-medium truncate max-w-[130px]" title={att.name}>{att.name}</span>
+                    <span className="text-[9px] font-mono opacity-60 uppercase">{att.type.split('/')[1] || 'FILE'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="max-w-[80%] bg-theme-accent text-white px-5 py-3 rounded-3xl rounded-tr-none shadow-xl">
              <p className="text-sm font-medium whitespace-pre-wrap break-words">{command}</p>
           </div>
@@ -127,6 +280,50 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
                       components={{
+                        code: ({ children, className }) => {
+                          const isInline = !className;
+                          const language = className?.replace('language-', '') || '';
+                          const codeString = String(children).replace(/\n$/, '');
+
+                          return isInline ? (
+                            <code className={`px-1.5 py-0.5 rounded font-mono text-[13px] font-semibold border ${
+                              isDarkMode 
+                                ? 'bg-zinc-800/90 text-emerald-400 border-zinc-700/60' 
+                                : 'bg-zinc-100 text-zinc-900 border-zinc-300'
+                            }`}>
+                              {children}
+                            </code>
+                          ) : (
+                            <div className="relative group/code my-4">
+                              <div className="absolute top-2 right-2 opacity-0 group-hover/code:opacity-100 transition-opacity flex gap-1.5 z-10">
+                                 <button 
+                                   onClick={() => setPreviewState({ isOpen: true, code: codeString, language })}
+                                   className="p-1.5 rounded border border-zinc-700/60 bg-zinc-900/90 text-zinc-300 hover:text-white"
+                                   title="Preview"
+                                 >
+                                   <Eye className="w-3.5 h-3.5" />
+                                 </button>
+                                 <CodeRunner code={codeString} language={language} />
+                                 <button 
+                                   onClick={() => {
+                                     navigator.clipboard.writeText(codeString);
+                                     toast.success("Code copied to synaptic buffer");
+                                   }}
+                                   className="p-1.5 rounded border border-zinc-700/60 bg-zinc-900/90 text-zinc-300 hover:text-white"
+                                 >
+                                   <Copy className="w-3.5 h-3.5" />
+                                 </button>
+                              </div>
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border-t border-x border-zinc-800 rounded-t-xl text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                                <Terminal className="w-3 h-3 text-zinc-500" />
+                                <span>{language || 'code'}</span>
+                              </div>
+                              <pre className="p-4 rounded-b-xl border border-zinc-800 bg-zinc-950 overflow-x-auto prism-code">
+                                <code dangerouslySetInnerHTML={{ __html: highlightCode(codeString, language) }} />
+                              </pre>
+                            </div>
+                          );
+                        },
                         img: ({ src, alt }) => (
                           <div className={`my-4 rounded-2xl overflow-hidden border shadow-xl ${isDarkMode ? 'border-zinc-800' : 'border-zinc-200'}`}>
                             <img 
@@ -143,8 +340,22 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                     </ReactMarkdown>
                     {isStreaming && <span className="inline-block w-2 h-4 bg-theme-accent ml-1 animate-pulse" />}
                  </div>
-                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={handleCopy} className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-500 hover:text-zinc-900'}`}>
+                 <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                       onClick={handleToggleTTS} 
+                       className={`p-2 rounded-xl transition-all ${
+                         isSpeaking 
+                           ? 'bg-theme-accent text-white shadow-md animate-pulse' 
+                           : isDarkMode 
+                             ? 'bg-zinc-800 text-zinc-400 hover:text-white' 
+                             : 'bg-zinc-100 text-zinc-500 hover:text-zinc-900'
+                       }`}
+                       title={isSpeaking ? "Stop reading aloud" : "Read response aloud"}
+                       aria-label={isSpeaking ? "Stop reading aloud" : "Read response aloud"}
+                    >
+                       {isSpeaking ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                    <button onClick={handleCopy} className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 text-zinc-500 hover:text-zinc-900'}`} title="Copy response">
                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </button>
                  </div>
@@ -163,6 +374,59 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
     >
       {/* User Message - Aligned Right */}
       <div className="flex flex-col items-end mb-8">
+        {(linkedMentions.length > 0 || isInit || (customCmdName && (customCmdName.startsWith('/') || customCmdName.startsWith('\\')))) && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-2 justify-end">
+            {isInit && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-xs">
+                <Zap className="w-3 h-3 text-amber-400 animate-pulse" />
+                \INIT AUDIT PROTOCOL
+              </span>
+            )}
+            {customCmdName && (customCmdName.startsWith('/') || customCmdName.startsWith('\\')) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-xs">
+                <Terminal className="w-3 h-3 text-purple-400" />
+                {customCmdName}
+              </span>
+            )}
+            {linkedMentions.map((m, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-theme-accent/20 text-theme-accent border border-theme-accent/30 shadow-xs">
+                <Link2 className="w-3 h-3" />
+                @{m}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Render User Attachments if present in standard mode */}
+        {attachments && attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2 justify-end max-w-[85%]">
+            {attachments.map((att, i) => (
+              <div 
+                key={i} 
+                className={`flex items-center gap-2 p-1.5 rounded-xl border text-xs shadow-xs ${
+                  isDarkMode ? 'bg-[#222225] border-zinc-700/60 text-zinc-300' : 'bg-zinc-100 border-zinc-300 text-zinc-800'
+                }`}
+              >
+                {att.type.startsWith('image/') && att.data ? (
+                  <img 
+                    src={`data:${att.type};base64,${att.data}`} 
+                    alt={att.name} 
+                    className="w-9 h-9 rounded-lg object-cover border border-zinc-700/60"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-theme-accent/15 border border-theme-accent/30 flex items-center justify-center text-theme-accent shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0 pr-1 text-left">
+                  <span className="text-[11px] font-medium truncate max-w-[130px]" title={att.name}>{att.name}</span>
+                  <span className="text-[9px] font-mono opacity-60 uppercase">{att.type.split('/')[1] || 'FILE'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className={`max-w-[85%] rounded-[2rem] px-5 py-2.5 shadow-sm border ${
           isDarkMode 
             ? 'bg-[#2a2a2c] border-zinc-700/50 text-white font-medium' 
@@ -249,12 +513,12 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
                           <Terminal className={`w-3 h-3 ${isDarkMode ? 'text-zinc-600' : 'text-zinc-500'}`} />
                           <span className={`text-[9px] font-bold uppercase tracking-[0.2em] ${isDarkMode ? 'text-zinc-500' : 'text-zinc-600'}`}>{language || 'text'}</span>
                         </div>
-                        <pre className={`relative p-5 rounded-b-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed ${
+                        <pre className={`relative p-5 rounded-b-xl border overflow-x-auto shadow-sm font-mono text-[13px] leading-relaxed prism-code ${
                           isDarkMode 
-                            ? 'bg-black/60 border-zinc-800 text-zinc-100' 
+                            ? 'bg-black/75 border-zinc-800 text-zinc-100' 
                             : 'bg-zinc-50 border-zinc-300 text-zinc-950'
                         }`}>
-                          <code>{children}</code>
+                          <code dangerouslySetInnerHTML={{ __html: highlightCode(codeString, language) }} />
                         </pre>
                       </div>
                     );
@@ -283,17 +547,46 @@ export const ChatBlock: React.FC<ChatBlockProps> = ({ id, command, response, tim
             </div>
           </div>
           
-          <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={handleToggleTTS}
+              className={`p-2 rounded-lg transition-all flex items-center gap-1.5 ${
+                isSpeaking 
+                  ? 'text-theme-accent bg-theme-accent/10 border border-theme-accent/30 font-medium' 
+                  : isDarkMode 
+                    ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' 
+                    : 'hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+              }`}
+              title={isSpeaking ? "Stop reading aloud" : "Read response aloud (Text-to-speech)"}
+              aria-label={isSpeaking ? "Stop reading aloud" : "Read response aloud"}
+            >
+              {isSpeaking ? (
+                <>
+                  <VolumeX className="w-4 h-4 text-theme-accent animate-pulse" />
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-theme-accent">Speaking</span>
+                </>
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
             <button 
               onClick={handleCopy}
-              className="p-2 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+              className={`p-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' 
+                  : 'hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+              }`}
               title="Copy to clipboard"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
             </button>
             <button 
               onClick={handleExportPDF}
-              className="p-2 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+              className={`p-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' 
+                  : 'hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900'
+              }`}
               title="Export as PDF"
             >
               <Download className="w-4 h-4" />

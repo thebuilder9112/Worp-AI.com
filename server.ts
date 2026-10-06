@@ -57,7 +57,10 @@ async function startServer() {
         body = JSON.parse(req.query.data as string);
       }
 
-      const { messages = [], chatMode = 'standard', attachedFile } = body;
+      const { messages = [], chatMode = 'standard', attachedFile, attachedFiles } = body;
+      const allAttachments: Array<{ name: string; type: string; data: string }> = Array.isArray(attachedFiles)
+        ? attachedFiles
+        : (attachedFile && attachedFile.data ? [attachedFile] : []);
 
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -110,8 +113,11 @@ async function startServer() {
       const model = "gemini-3.6-flash";
 
       let userParts: any[] = [];
-      if (attachedFile && attachedFile.data) {
-        let mimeType = attachedFile.type || "image/jpeg";
+      for (let i = 0; i < allAttachments.length; i++) {
+        const item = allAttachments[i];
+        if (!item || !item.data) continue;
+
+        let mimeType = item.type || "image/jpeg";
         if (!mimeType.includes('/')) {
           mimeType = `image/${mimeType}`;
         }
@@ -119,13 +125,36 @@ async function startServer() {
           mimeType = 'image/png';
         }
 
-        let base64Data = attachedFile.data;
+        let base64Data = item.data;
         if (base64Data.includes(',')) {
           base64Data = base64Data.split(',')[1];
         }
         base64Data = base64Data.trim();
 
-        if (base64Data) {
+        const isTextOrCode = mimeType.startsWith("text/") || 
+          mimeType.includes("json") || 
+          mimeType.includes("javascript") || 
+          mimeType.includes("typescript") || 
+          mimeType.includes("xml") || 
+          mimeType.includes("csv") || 
+          mimeType.includes("markdown") || 
+          Boolean(item.name && item.name.match(/\.(ts|tsx|js|jsx|json|md|py|css|html|txt|csv|sql|env|yaml|yml|sh|rs|go|c|cpp|h)$/i));
+
+        if (isTextOrCode && base64Data) {
+          try {
+            const decoded = Buffer.from(base64Data, 'base64').toString('utf-8');
+            userParts.push({
+              text: `[RESOURCE ATTACHMENT ${i + 1}/${allAttachments.length}: "${item.name}" (Type: ${mimeType})]\n\`\`\`\n${decoded}\n\`\`\`\n[END OF RESOURCE: "${item.name}"]`
+            });
+          } catch {
+            userParts.push({
+              inlineData: {
+                mimeType,
+                data: base64Data
+              }
+            });
+          }
+        } else if (base64Data) {
           userParts.push({
             inlineData: {
               mimeType,
@@ -135,7 +164,7 @@ async function startServer() {
         }
       }
 
-      const finalPromptText = userText || (attachedFile ? "Please inspect and describe this attached image or file." : "");
+      const finalPromptText = userText || (allAttachments.length > 0 ? `Please inspect and describe these ${allAttachments.length} attached items.` : "");
       if (finalPromptText) {
         userParts.push({ text: finalPromptText });
       }
@@ -230,7 +259,7 @@ async function startServer() {
     console.log("Starting in DEVELOPMENT mode with Vite middleware");
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
